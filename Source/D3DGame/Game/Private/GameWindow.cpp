@@ -1,6 +1,7 @@
 #include "D3DGamePCH.h"
 #include "resource.h"
 #include "GameWindow.h"
+#include "GameApplication.h"
 
 namespace wyc
 {
@@ -26,33 +27,38 @@ namespace wyc
 		return 0;
 	}
 
-	std::shared_ptr<wyc::CGameWindow> CGameWindow::CreateGameWindow(HINSTANCE hInstance, const wchar_t* title, uint32_t width, uint32_t height)
+	bool CGameWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
 	{
 		const wchar_t* WindowClassName = L"D3DGameWindow";
-		
+
+		auto pAppInstance = CGameApplication::Get();
+		auto appHandle = pAppInstance->GetApplicationHandle();
+		auto appModule = pAppInstance->GetApplicationModule();
+
 		WNDCLASSEX windowClass;
 		windowClass.cbSize = sizeof(WNDCLASSEX);
 		windowClass.style = CS_HREDRAW | CS_VREDRAW;
 		windowClass.lpfnWndProc = &WindowProcess;
 		windowClass.cbClsExtra = 0;
 		windowClass.cbWndExtra = 0;
-		windowClass.hInstance = hInstance;
-		windowClass.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+		windowClass.hInstance = appHandle;
+
+		windowClass.hIcon = LoadIcon(appModule, MAKEINTRESOURCE(IDI_APP_ICON));
 		windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
 		windowClass.hbrBackground = HBRUSH(COLOR_WINDOW);
 		windowClass.lpszMenuName = NULL;
 		windowClass.lpszClassName = WindowClassName;
-		windowClass.hIconSm = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
-		
+		windowClass.hIconSm = LoadIcon(appModule, MAKEINTRESOURCE(IDI_APP_ICON));
+
 		HRESULT hr = RegisterClassEx(&windowClass);
-		if(!SUCCEEDED(hr))
+		if (!SUCCEEDED(hr))
 		{
 			// fail to register window
 			return nullptr;
 		}
 
 		DWORD style = WS_OVERLAPPEDWINDOW;
-		RECT clientRect = {0, 0, int(width), int(height)};
+		RECT clientRect = { 0, 0, int(width), int(height) };
 		AdjustWindowRect(&clientRect, style, FALSE);
 		int windowWidth = clientRect.right - clientRect.left;
 		int windowHeight = clientRect.bottom - clientRect.top;
@@ -64,14 +70,17 @@ namespace wyc
 		int windowY = std::max<int>(0, (screenHeight - windowHeight) / 2);
 
 		HWND hMainWnd = CreateWindowW(WindowClassName, title, style,
-			windowX, windowY, windowWidth, windowHeight, NULL, NULL, hInstance, NULL);
+			windowX, windowY, windowWidth, windowHeight, NULL, NULL, appHandle, NULL);
 		if (!hMainWnd)
 		{
 			// fail to create windows
 			return false;
 		}
-
-		return std::make_shared<CGameWindow>(hMainWnd);
+		
+		mWindowHandle = hMainWnd;
+		mWindowWidth = windowWidth;
+		mWindowHeight = windowHeight;
+		return true;
 	}
 
 	void CGameWindow::Destroy()
@@ -104,15 +113,17 @@ namespace wyc
 		return IS_WINDOW_VALID(mWindowHandle);
 	}
 
-	CGameWindow::CGameWindow(HWND hWindow)
-		: mWindowHandle(hWindow)
+	CGameWindow::CGameWindow()
+		: mWindowHandle(NULL)
+		, mWindowWidth(0)
+		, mWindowHeight(0)
 	{
 
 	}
 
 	CGameWindow::~CGameWindow()
 	{
-		
+		Destroy();		
 	}
 
 }

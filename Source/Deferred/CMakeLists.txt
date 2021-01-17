@@ -7,9 +7,12 @@ set(GAME_SOURCE
 
 add_executable(${PROJECT_NAME} WIN32
 	${GAME_SOURCE}
-	# ${RESOURCE_FILES}
 )
 
 target_link_libraries(${PROJECT_NAME}
     D3DGame
+)
+
+set_property(TARGET ${PROJECT_NAME} 
+    PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

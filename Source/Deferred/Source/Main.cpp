@@ -10,17 +10,14 @@ using namespace wyc;
 
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
-	if(!CGameApplication::CreateApplication(hInstance))
+	if(!CGameApplication::CreateApplication(hInstance, L"GameDeferred", 1290, 720))
 	{
 		return 1;
 	}
 
 	auto Application = CGameApplication::Get();
 
-	if(!Application->ShowWindow(L"D3D12 Game", 1290, 720))
-	{
-		return 2;
-	}
+	Application->ShowWindow(true);
 
 	Application->Run();
 

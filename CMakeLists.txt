@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.16)
 
 project(D3D12Deferred LANGUAGES CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 add_definitions(-DUNICODE -D_UNICODE)
 
 set(SUPRESS_WARNINGS
@@ -12,7 +15,9 @@ set(SUPRESS_WARNINGS
 add_compile_options("/utf-8" ${SUPRESS_WARNINGS})
 
 # 将 CMake 相关的 project 放到 solution 目录里面
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL 
+    PROPERTY USE_FOLDERS ON 
+)
 
 # 设置输出目录
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Libraries/$<CONFIGURATION>) # LIB 输出目录
