@@ -15,10 +15,12 @@ namespace wyc
 
 		bool Initialzie(CGameWindow* gameWindow);
 		virtual void Render();
+		virtual void Close();
 
 	protected:
-		
 		bool CreateDevice(HWND hWnd, uint32_t width, uint32_t height);
+		void Signal();
+		void WaitForFence();
 
 		bool mInitialized;
 		uint8_t mFrameBuffCount;

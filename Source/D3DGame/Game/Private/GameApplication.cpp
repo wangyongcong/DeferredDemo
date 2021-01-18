@@ -37,6 +37,8 @@ namespace wyc
 
 	void CGameApplication::DestroyApplication()
 	{
+		sApplicationPtr->mDevice.reset();
+		sApplicationPtr->mWindow.reset();
 		Log("Application exited");
 		close_logger();
 	}
@@ -63,6 +65,7 @@ namespace wyc
 			}
 			mDevice->Render();
 		}
+		mDevice->Close();
 	}
 
 	void CGameApplication::Quit(int exitCode)

@@ -25,7 +25,21 @@ namespace wyc
 
 	CRenderDeviceD3D12::~CRenderDeviceD3D12()
 	{
-
+		if(mBackBuffers)
+		{
+			delete[] mBackBuffers;
+			mBackBuffers = nullptr;
+		}
+		if(mCommandAllocators)
+		{
+			delete[] mCommandAllocators;
+			mCommandAllocators = nullptr;
+		}
+		if(mFrameFenceValues)
+		{
+			delete[] mFrameFenceValues;
+			mFrameFenceValues = nullptr;
+		}
 	}
 
 	bool CRenderDeviceD3D12::Initialzie(CGameWindow* gameWindow)
@@ -78,21 +92,20 @@ namespace wyc
 			};
 			mCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 
-			uint64_t fenceValueForSignal = ++mFenceValue;
-			mFrameFenceValues[mCurrentBackBufferIndex] = fenceValueForSignal;
-			ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mFenceValue));
+			Signal();
 
 			ThrowIfFailed(mSwapChain->Present(1, 0));
-
 			mCurrentBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
 
-			if (mFence->GetCompletedValue() < mFenceValue)
-			{
-				mFence->SetEventOnCompletion(mFenceValue, hFenceEvent);
-				DWORD duration = (DWORD)(std::chrono::milliseconds::max().count());
-				::WaitForSingleObject(hFenceEvent, duration);
-			}
+			WaitForFence();
 		}
+	}
+
+	void CRenderDeviceD3D12::Close()
+	{
+		Signal();
+		WaitForFence();
+		CloseHandle(hFenceEvent);
 	}
 
 	bool CRenderDeviceD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height)
@@ -247,6 +260,24 @@ namespace wyc
 		mFrameFenceValues = new uint64_t[mFrameBuffCount];
 
 		return true;
+	}
+
+	void CRenderDeviceD3D12::Signal()
+	{
+		uint64_t fenceValueForSignal = ++mFenceValue;
+		mFrameFenceValues[mCurrentBackBufferIndex] = fenceValueForSignal;
+		ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mFenceValue));
+
+	}
+
+	void CRenderDeviceD3D12::WaitForFence()
+	{
+		if (mFence->GetCompletedValue() < mFenceValue)
+		{
+			mFence->SetEventOnCompletion(mFenceValue, hFenceEvent);
+			DWORD duration = (DWORD)(std::chrono::milliseconds::max().count());
+			::WaitForSingleObject(hFenceEvent, duration);
+		}
 	}
 
 } // namespace wyc

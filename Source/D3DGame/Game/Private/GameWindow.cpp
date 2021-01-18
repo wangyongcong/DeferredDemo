@@ -123,7 +123,7 @@ namespace wyc
 
 	CGameWindow::~CGameWindow()
 	{
-		Destroy();		
+		Destroy();
 	}
 
 }
