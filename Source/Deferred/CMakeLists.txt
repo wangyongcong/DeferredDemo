@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(Deferred)
 
 set(GAME_SOURCE
-    Source/Main.cpp
+	Source/Main.cpp
 )
 
 add_executable(${PROJECT_NAME} WIN32
@@ -10,9 +10,9 @@ add_executable(${PROJECT_NAME} WIN32
 )
 
 target_link_libraries(${PROJECT_NAME}
-    D3DGame
+	GameFramework
 )
 
 set_property(TARGET ${PROJECT_NAME} 
-    PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+	PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )

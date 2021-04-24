@@ -1,4 +1,5 @@
-#include "RenderDevice.h"
+#include "GameFrameworkPCH.h"
+#include "DeviceD3D12.h"
 #include <chrono>
 
 #include <d3d12.h>
@@ -9,9 +10,10 @@
 // D3D12 extension library.
 #include <d3dx12.h>
 
-#include "GameWindow.h"
 #include "AssertionMacros.h"
 #include "LogMacros.h"
+#include "WindowsGameWindow.h"
+#include "D3DHelper.h"
 
 
 namespace wyc
@@ -20,6 +22,8 @@ namespace wyc
 		: mInitialized(false)
 		, mFrameBuffCount(3)
 		, mFenceValue(0)
+		// D3D12 device data
+		, mDevice(nullptr)
 	{
 	}
 
@@ -40,15 +44,17 @@ namespace wyc
 			delete[] mFrameFenceValues;
 			mFrameFenceValues = nullptr;
 		}
+		SAFE_RELEASE(mDevice);
 	}
 
-	bool CRenderDeviceD3D12::Initialzie(CGameWindow* gameWindow)
+	bool CRenderDeviceD3D12::Initialzie(IGameWindow* gameWindow)
 	{
 		if (mInitialized)
 		{
 			return true;
 		}
-		HWND hWnd = gameWindow->GetWindowHandle();
+		CWindowsGameWindow* win = dynamic_cast<CWindowsGameWindow*>(gameWindow);
+		HWND hWnd = win->GetWindowHandle();
 		unsigned width, height;
 		gameWindow->GetWindowSize(width, height);
 		if (!CreateDevice(hWnd, width, height))
@@ -78,27 +84,7 @@ namespace wyc
 			mCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 		}
 
-		{
-			CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-				backBuffer.Get(),
-				D3D12_RESOURCE_STATE_RENDER_TARGET, 
-				D3D12_RESOURCE_STATE_PRESENT);
-			mCommandList->ResourceBarrier(1, &barrier);
-
-			mCommandList->Close();
-
-			ID3D12CommandList* const commandLists[] = {
-				mCommandList.Get()
-			};
-			mCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
-
-			Signal();
-
-			ThrowIfFailed(mSwapChain->Present(1, 0));
-			mCurrentBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
-
-			WaitForFence();
-		}
+		SwapBuffer();
 	}
 
 	void CRenderDeviceD3D12::Close()
@@ -106,6 +92,35 @@ namespace wyc
 		Signal();
 		WaitForFence();
 		CloseHandle(hFenceEvent);
+	}
+
+	bool CRenderDeviceD3D12::CreateSwapChain(const SSwapChainDesc& Desc)
+	{
+		return true;
+	}
+
+	void CRenderDeviceD3D12::SwapBuffer()
+	{
+		auto backBuffer = mBackBuffers[mCurrentBackBufferIndex];
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffer.Get(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PRESENT);
+		mCommandList->ResourceBarrier(1, &barrier);
+
+		mCommandList->Close();
+
+		ID3D12CommandList* const commandLists[] = {
+			mCommandList.Get()
+		};
+		mCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+
+		Signal();
+
+		ThrowIfFailed(mSwapChain->Present(1, 0));
+		mCurrentBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
+
+		WaitForFence();
 	}
 
 	bool CRenderDeviceD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height)
@@ -150,7 +165,7 @@ namespace wyc
 
 #ifdef _DEBUG
 		ComPtr<ID3D12InfoQueue> deviceInfoQueue;
-		if (SUCCEEDED(mDevice.As(&deviceInfoQueue)))
+		if (SUCCEEDED(mDevice->QueryInterface(IID_PPV_ARGS(&deviceInfoQueue))))
 		{
 			deviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
 			deviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);

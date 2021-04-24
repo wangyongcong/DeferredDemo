@@ -17,8 +17,6 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 
 	auto Application = CGameApplication::Get();
 
-	Application->ShowWindow(true);
-
 	Application->Run();
 
 	Application->DestroyApplication();

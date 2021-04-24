@@ -1,9 +1,9 @@
 #pragma once
-#include "D3DGame.h"
+#include "GameFramework.h"
 
 namespace wyc
 {
-	class D3DGAME_API CGameInstance
+	class GameFramework_API CGameInstance
 	{
 	public:
 		static bool CreateGameInstance();

@@ -1,14 +1,17 @@
-#include "D3DGamePCH.h"
+#include "GameFrameworkPCH.h"
 
 #include <algorithm>
 #include <filesystem>
 
 #include "GameApplication.h"
-#include "GameWindow.h"
-#include "RenderDevice.h"
 #include "GameInstance.h"
 #include "LogMacros.h"
 #include "Utility.h"
+
+#if defined(_WIN32) || defined(_WIN64)
+#include "WindowsGameWindow.h"
+#include "DeviceD3D12.h"
+#endif
 
 namespace wyc
 {
@@ -31,6 +34,7 @@ namespace wyc
 			LogError("Fail to create device");
 			return false;
 		}
+		sApplicationPtr->ShowWindow(true);
 		Log("Application started");
 		return true;
 	}
@@ -124,7 +128,7 @@ namespace wyc
 	{
 		if (!mWindow)
 		{
-			mWindow = std::make_shared<CGameWindow>();
+			mWindow = std::make_shared<CWindowsGameWindow>();
 			return mWindow->CreateGameWindow(mAppName.c_str(), windowWidth, windowHeight);
 		}
 		return true;

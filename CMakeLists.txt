@@ -25,7 +25,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Binaries/$<CONFIGURATION>
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/Binaries/$<CONFIGURATION>) # EXE 输出目录
 
 
-add_subdirectory(Source/D3DGame)
+add_subdirectory(Source/GameFramework)
 add_subdirectory(Source/Deferred)
 
 # 设置 startup project

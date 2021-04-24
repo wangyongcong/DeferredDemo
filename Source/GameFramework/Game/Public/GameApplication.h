@@ -1,15 +1,15 @@
 #pragma once
 
 #include <string>
-#include "D3DGame.h"
+#include "GameFramework.h"
+#include "IGameWindow.h"
+#include "IRenderDevice.h"
 
 namespace wyc
 {
-	class CGameWindow;
 	class CGameInstance;
-	class CRenderDeviceD3D12;
 
-	class D3DGAME_API CGameApplication
+	class GameFramework_API CGameApplication
 	{
 		static HINSTANCE sModuleHandle;
 		static HINSTANCE sApplicationHandle;
@@ -37,9 +37,9 @@ namespace wyc
 		virtual bool CreateDevice();
 
 		std::wstring mAppName;
-		std::shared_ptr<CGameWindow> mWindow;
+		std::shared_ptr<IGameWindow> mWindow;
 		std::shared_ptr<CGameInstance> mGameInstance;
-		std::shared_ptr<CRenderDeviceD3D12> mDevice;
+		std::shared_ptr<IRenderDevice> mDevice;
 	};
 
 } // namespace wyc

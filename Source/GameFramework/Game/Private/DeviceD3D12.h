@@ -1,21 +1,24 @@
 #pragma once
 
 #include <d3d12.h>
+#include "IRenderDevice.h"
 
 
 namespace wyc
 {
-	class CGameWindow;
-	
-	class CRenderDeviceD3D12
+	class CRenderDeviceD3D12 : public IRenderDevice
 	{
 	public:
 		CRenderDeviceD3D12();
 		virtual ~CRenderDeviceD3D12();
 
-		bool Initialzie(CGameWindow* gameWindow);
-		virtual void Render();
-		virtual void Close();
+		// Implement IRenderDevice
+		virtual bool Initialzie(IGameWindow* gameWindow) override;
+		virtual void Render() override;
+		virtual void Close() override;
+		virtual bool CreateSwapChain(const SSwapChainDesc& Desc) override;
+		virtual void SwapBuffer() override;
+		// IRenderDevice
 
 	protected:
 		bool CreateDevice(HWND hWnd, uint32_t width, uint32_t height);
@@ -29,7 +32,7 @@ namespace wyc
 		uint64_t* mFrameFenceValues;
 		uint64_t mFenceValue;
 
-		ComPtr<ID3D12Device2> mDevice;
+		ID3D12Device2* mDevice;
 		ComPtr<ID3D12CommandQueue> mCommandQueue;
 		ComPtr<IDXGISwapChain4> mSwapChain;
 		ComPtr<ID3D12DescriptorHeap> mSwapChainHeap;

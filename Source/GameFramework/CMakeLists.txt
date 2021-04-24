@@ -1,4 +1,4 @@
-project(D3DGame)
+project(GameFramework)
 
 # -----------
 # 设置模块源码
@@ -14,11 +14,11 @@ set(PRIVATE_DIR
 
 set(PUBLIC_SOURCE
 	# Game module
-	Game/Public/D3DGame.h
+	Game/Public/GameFramework.h
 	Game/Public/GameApplication.h
-	Game/Public/GameWindow.h
 	Game/Public/GameInstance.h
-	Game/Public/RenderDevice.h
+	Game/Public/IRenderDevice.h
+	Game/Public/IGameWindow.h
 	Game/Public/AssertionMacros.h
 	Game/Public/LogMacros.h
 	Game/Public/Utility.h
@@ -26,12 +26,16 @@ set(PUBLIC_SOURCE
 
 set(PRIVATE_SOURCE
 	# Game module
-	Game/Private/D3DGamePCH.h
+	Game/Private/GameFrameworkPCH.h
 	Game/Private/DllMain.cpp
 	Game/Private/GameApplication.cpp
-	Game/Private/GameWindow.cpp
+	Game/private/WindowsGameWindow.h
+	Game/Private/WindowsGameWindow.cpp
 	Game/Private/GameInstance.cpp
-	Game/Private/RenderDevice.cpp
+	Game/Private/D3DHelper.h
+	Game/Private/D3DHelper.cpp
+	Game/Private/DeviceD3D12.h
+	Game/Private/DeviceD3D12.cpp
 	Game/Private/Utility.cpp
 )
 
@@ -73,11 +77,11 @@ source_group("Stb" FILES ${STB_SOURCE})
 # --------
 
 set(RESOURCE_FILES 
-	D3DGame.rc
+	GameFramework.rc
     Resources/Icon/app_icon.ico
 )
 
-source_group("Resources" FILES D3DGame.rc)
+source_group("Resources" FILES GameFramework.rc)
 source_group("Resources/Icon" FILES Resources/Icon/app_icon.ico)
 
 # --------
@@ -92,7 +96,7 @@ add_library(${PROJECT_NAME} SHARED
 )
 
 target_precompile_headers(${PROJECT_NAME}
-	PRIVATE Game/Private/D3DGamePCH.h
+	PRIVATE Game/Private/GameFrameworkPCH.h
 )
 
 target_include_directories(${PROJECT_NAME}
@@ -107,5 +111,5 @@ target_link_libraries(${PROJECT_NAME}
 	PUBLIC dxgi.lib
 	PUBLIC dxguid.lib
 	# 如果是 static lib 要将资源文件链接到库里面
-	# PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/D3DGame.dir/${CMAKE_CFG_INTDIR}/D3DGame.res
+	# PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/GameFramework.dir/${CMAKE_CFG_INTDIR}/GameFramework.res
 )

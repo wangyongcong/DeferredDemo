@@ -1,6 +1,6 @@
-#include "D3DGamePCH.h"
+#include "GameFrameworkPCH.h"
 #include "resource.h"
-#include "GameWindow.h"
+#include "WindowsGameWindow.h"
 #include "GameApplication.h"
 
 namespace wyc
@@ -27,7 +27,7 @@ namespace wyc
 		return 0;
 	}
 
-	bool CGameWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
+	bool CWindowsGameWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
 	{
 		const wchar_t* WindowClassName = L"D3DGameWindow";
 
@@ -83,7 +83,7 @@ namespace wyc
 		return true;
 	}
 
-	void CGameWindow::Destroy()
+	void CWindowsGameWindow::Destroy()
 	{
 		if(mWindowHandle != NULL)
 		{
@@ -92,7 +92,7 @@ namespace wyc
 		}
 	}
 
-	void CGameWindow::SetVisible(bool bIsVisible)
+	void CWindowsGameWindow::SetVisible(bool bIsVisible)
 	{
 		if(!IS_WINDOW_VALID(mWindowHandle))
 		{
@@ -108,12 +108,18 @@ namespace wyc
 		}
 	}
 
-	bool CGameWindow::IsWindowValid() const
+	bool CWindowsGameWindow::IsWindowValid() const
 	{
 		return IS_WINDOW_VALID(mWindowHandle);
 	}
 
-	CGameWindow::CGameWindow()
+	void CWindowsGameWindow::GetWindowSize(unsigned& width, unsigned& height) const
+	{
+		width = mWindowWidth;
+		height = mWindowHeight;
+	}
+
+	CWindowsGameWindow::CWindowsGameWindow()
 		: mWindowHandle(NULL)
 		, mWindowWidth(0)
 		, mWindowHeight(0)
@@ -121,7 +127,7 @@ namespace wyc
 
 	}
 
-	CGameWindow::~CGameWindow()
+	CWindowsGameWindow::~CWindowsGameWindow()
 	{
 		Destroy();
 	}
