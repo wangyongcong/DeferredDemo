@@ -1,9 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #include <Shlwapi.h>
-
 #include <memory>
-
 #include "GameApplication.h"
 
 using namespace wyc;
@@ -16,7 +14,7 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	}
 
 	auto Application = CGameApplication::Get();
-
+	// @todo: exception handling
 	Application->Run();
 
 	Application->DestroyApplication();

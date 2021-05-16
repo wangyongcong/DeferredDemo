@@ -3,7 +3,7 @@
 
 namespace wyc
 {
-	class GameFramework_API CGameInstance
+	class GAME_FRAMEWORK_API CGameInstance
 	{
 	public:
 		static bool CreateGameInstance();

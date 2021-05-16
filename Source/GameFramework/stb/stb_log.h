@@ -50,6 +50,16 @@
 #include <thread>
 #include <string>
 
+#ifdef _WINDLL
+	#ifdef GameFramework_EXPORTS
+		#define STB_LOG_API __declspec(dllexport)
+	#else
+		#define STB_LOG_API __declspec(dllimport)
+	#endif
+#else
+	#define STB_LOG_API
+#endif
+
 #ifdef USE_NAMESPACE
 #ifndef STB_LOG_NAMESPACE
 #define STB_LOG_NAMESPACE stb
@@ -101,35 +111,35 @@ enum StbLogLevel {
 #endif
 
 // write log
-#define log_write(lvl, channel, fmt, ...) (get_log_context()->logger->write(lvl, channel, (fmt), ##__VA_ARGS__))
+#define log_write(lvl, channel, fmt, ...) (get_logger()->write(lvl, channel, (fmt), ##__VA_ARGS__))
 #ifdef LOG_SEVERITY_LEVEL
 // write critical log
 #if LOG_SEVERITY_LEVEL <= 50
-#define log_critical(fmt, ...) (get_log_context()->logger->write(STB_LOG_LEVEL::LOG_CRITICAL, "CRITICAL", (fmt), ##__VA_ARGS__))
+#define log_critical(fmt, ...) (get_logger()->write(STB_LOG_LEVEL::LOG_CRITICAL, "CRITICAL", (fmt), ##__VA_ARGS__))
 #else
 #define log_critical(fmt,...)
 #endif
 // write error log
 #if LOG_SEVERITY_LEVEL <= 40
-#define log_error(fmt, ...) (get_log_context()->logger->write(STB_LOG_LEVEL::LOG_ERROR, "ERROR", (fmt), ##__VA_ARGS__))
+#define log_error(fmt, ...) (get_logger()->write(STB_LOG_LEVEL::LOG_ERROR, "ERROR", (fmt), ##__VA_ARGS__))
 #else
 #define log_error(fmt,...)
 #endif
 // write warning log
 #if LOG_SEVERITY_LEVEL <= 30
-#define log_warning(fmt, ...) (get_log_context()->logger->write(STB_LOG_LEVEL::LOG_WARNING, "WARNING", (fmt), ##__VA_ARGS__))
+#define log_warning(fmt, ...) (get_logger()->write(STB_LOG_LEVEL::LOG_WARNING, "WARNING", (fmt), ##__VA_ARGS__))
 #else
 #define log_warning(fmt,...)
 #endif
 // write info log
 #if LOG_SEVERITY_LEVEL <= 20
-#define log_info(fmt, ...) (get_log_context()->logger->write(STB_LOG_LEVEL::LOG_INFO, "INFO", (fmt), ##__VA_ARGS__))
+#define log_info(fmt, ...) (get_logger()->write(STB_LOG_LEVEL::LOG_INFO, "INFO", (fmt), ##__VA_ARGS__))
 #else
 #define log_info(fmt,...)
 #endif
 // write debug log
 #if LOG_SEVERITY_LEVEL <= 10
-#define log_debug(fmt, ...) (get_log_context()->logger->write(STB_LOG_LEVEL::LOG_DEBUG, "DEBUG", (fmt), ##__VA_ARGS__))
+#define log_debug(fmt, ...) (get_logger()->write(STB_LOG_LEVEL::LOG_DEBUG, "DEBUG", (fmt), ##__VA_ARGS__))
 #else
 #define log_debug(fmt,...)
 #endif
@@ -153,28 +163,20 @@ struct LogContext {
 };
 typedef std::chrono::milliseconds::rep millisecond_t;
 
-// get global logger info
-inline LogContext *get_log_context() {
-	static LogContext s_logger_context;
-	return &s_logger_context;
-}
-
 // get global logger
-inline CLogger* get_logger() {
-	return get_log_context()->logger;
-}
+STB_LOG_API CLogger* get_logger();
 
 // close logger
-void close_logger();
+STB_LOG_API void close_logger();
 
 // start a logger thread
-void start_handler_thread(CLogHandler *handler, millisecond_t sleep_time = LOG_WORKER_SLEEP_TIME);
+STB_LOG_API void start_handler_thread(CLogHandler *handler, millisecond_t sleep_time = LOG_WORKER_SLEEP_TIME);
 
 // start logging to standard output
-CLogHandler* start_logger(bool async = true, millisecond_t sleep_time = LOG_WORKER_SLEEP_TIME);
+STB_LOG_API CLogHandler* start_logger(bool async = true, millisecond_t sleep_time = LOG_WORKER_SLEEP_TIME);
 
 // start logging to file
-CLogHandler* start_file_logger(const char *log_file_path,
+STB_LOG_API CLogHandler* start_file_logger(const char *log_file_path,
                        bool append_mode = false,
                        int max_rotation = LOG_FILE_ROTATE_COUNT,
                        size_t rotate_size = LOG_FILE_ROTATE_SIZE,
@@ -182,7 +184,7 @@ CLogHandler* start_file_logger(const char *log_file_path,
 );
 
 // start logging to string buffer
-CLogHandler* start_string_logger(size_t buffer_size = LOG_STRING_SIZE,
+STB_LOG_API CLogHandler* start_string_logger(size_t buffer_size = LOG_STRING_SIZE,
 								 bool async = true, millisecond_t sleep_time = LOG_WORKER_SLEEP_TIME);
 
 // convert to data that can be copied between threads
@@ -192,6 +194,7 @@ struct CopyableType
 	typedef T type;
 };
 
+// @todo: string literal has type "const char (&)[N]". It can be copied as pointer.
 template<>
 struct CopyableType<const char*>
 {
@@ -270,9 +273,6 @@ struct alignas(CACHELINE_SIZE) Sequence {
 		return value.fetch_add(v, std::memory_order::memory_order_relaxed);
 	}
 };
-
-void *aligned_alloc(size_t alignment, size_t size);
-void aligned_free(void *ptr);
 
 using LogEventTime = std::chrono::system_clock::time_point;
 
@@ -408,13 +408,8 @@ private:
 
 class CLogHandler {
 public:
-	static void *operator new(size_t size) {
-		return aligned_alloc(alignof(CLogHandler), size);
-	}
-
-	static void operator delete(void *ptr) {
-		aligned_free(ptr);
-	}
+	static void* operator new(size_t size);
+	static void operator delete(void *ptr);
 
 	CLogHandler();
 	virtual ~CLogHandler();
@@ -563,7 +558,7 @@ private:
 	size_t m_capacity;
 };
 
-class CLogger {
+class STB_LOG_API CLogger {
 public:
 	CLogger(size_t buf_size);
 	~CLogger();
@@ -618,14 +613,8 @@ public:
 		return m_event_queue + (seq & m_size_mask);
 	}
 
-	static void *operator new(size_t size) {
-		return aligned_alloc(alignof(CLogger), size);
-	}
-
-	static void operator delete(void *ptr) {
-		aligned_free(ptr);
-	}
-
+	static void* operator new(size_t size);
+	static void operator delete(void* ptr);
 	static size_t get_next_power2(size_t val);
 
 private:
@@ -658,6 +647,18 @@ private:
 #ifdef USE_NAMESPACE
 namespace STB_LOG_NAMESPACE {
 #endif
+
+// get global logger info
+inline LogContext* get_log_context() {
+	static LogContext s_logger_context;
+	return &s_logger_context;
+}
+
+// get global logger
+CLogger* get_logger()
+{
+	return get_log_context()->logger;
+}
 
 inline LogContext* add_log_handler(CLogHandler *handler)
 {
@@ -725,7 +726,7 @@ CLogHandler* start_string_logger(size_t buffer_size, bool async, millisecond_t s
 	return handler;
 }
 
-void *aligned_alloc(size_t alignment, size_t size) {
+static void *aligned_alloc(size_t alignment, size_t size) {
 	// [Memory returned][ptr to start of memory][aligned memory][extra memory]
 	size_t request_size = size + alignment;
 	void *raw = malloc(request_size + sizeof(void *));
@@ -741,7 +742,7 @@ void *aligned_alloc(size_t alignment, size_t size) {
 	return ptr;
 }
 
-void aligned_free(void *ptr) {
+static void aligned_free(void *ptr) {
 	void *raw = *((void **) ptr - 1);
 	free(raw);
 }
@@ -769,6 +770,14 @@ size_t CLogger::get_next_power2(size_t val) {
 // CLogger implementation
 // --------------------------------
 	
+void* CLogger::operator new(size_t size) {
+	return aligned_alloc(alignof(CLogger), size);
+}
+
+void CLogger::operator delete(void* ptr) {
+	aligned_free(ptr);
+}
+
 CLogger::CLogger(size_t size) {
 	assert(size > 0);
 	if (size & (size - 1))
@@ -891,6 +900,14 @@ void CLogger::close() {
 // --------------------------------
 // CLogHandler implementation
 // --------------------------------
+
+void* CLogHandler::operator new(size_t size) {
+	return aligned_alloc(alignof(CLogHandler), size);
+}
+
+void CLogHandler::operator delete(void* ptr) {
+	aligned_free(ptr);
+}
 
 CLogHandler::CLogHandler()
 		: m_logger(nullptr), m_filter(nullptr), m_formatter(nullptr), m_closed(false)

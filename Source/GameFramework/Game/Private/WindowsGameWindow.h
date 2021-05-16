@@ -4,7 +4,7 @@
 
 namespace wyc
 {
-	class GameFramework_API CWindowsGameWindow : public IGameWindow
+	class GAME_FRAMEWORK_API CWindowsGameWindow : public IGameWindow
 	{
 	public:
 		CWindowsGameWindow();

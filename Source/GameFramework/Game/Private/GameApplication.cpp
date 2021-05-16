@@ -17,12 +17,12 @@ namespace wyc
 {
 	HINSTANCE CGameApplication::sModuleHandle = NULL;
 	HINSTANCE CGameApplication::sApplicationHandle = NULL;
-	std::shared_ptr<CGameApplication> CGameApplication::sApplicationPtr;
+	CGameApplication* CGameApplication::sApplicationPtr;
 
 	bool CGameApplication::CreateApplication(HINSTANCE hInstance, const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight)
 	{
 		sApplicationHandle = hInstance;
-		sApplicationPtr = std::make_shared<CGameApplication>(appName);
+		sApplicationPtr = new CGameApplication(appName);
 		sApplicationPtr->StartLogger();
 		if (!sApplicationPtr->CreateGameWindow(windowWidth, windowHeight))
 		{
@@ -41,13 +41,16 @@ namespace wyc
 
 	void CGameApplication::DestroyApplication()
 	{
-		sApplicationPtr->mDevice.reset();
-		sApplicationPtr->mWindow.reset();
-		Log("Application exited");
+		if(sApplicationPtr)
+		{
+			delete sApplicationPtr;
+			sApplicationPtr = nullptr;
+			Log("Application exited");
+		}
 		close_logger();
 	}
 
-	std::shared_ptr<wyc::CGameApplication> CGameApplication::Get()
+	CGameApplication* CGameApplication::Get()
 	{
 		return sApplicationPtr;
 	}
@@ -89,6 +92,9 @@ namespace wyc
 
 	CGameApplication::CGameApplication(const wchar_t* appName)
 		: mAppName(appName)
+		, mWindow(nullptr)
+		, mDevice(nullptr)
+		, mGameInstance(nullptr)
 	{
 
 	}
@@ -97,10 +103,13 @@ namespace wyc
 	{
 		CGameInstance::DestroyGameInstance();
 
+		if (mDevice)
+		{
+			delete mDevice;
+		}
 		if(mWindow)
 		{
-			mWindow->Destroy();
-			mWindow = nullptr;
+			delete mWindow;
 		}
 	}
 
@@ -128,7 +137,7 @@ namespace wyc
 	{
 		if (!mWindow)
 		{
-			mWindow = std::make_shared<CWindowsGameWindow>();
+			mWindow = new CWindowsGameWindow;
 			return mWindow->CreateGameWindow(mAppName.c_str(), windowWidth, windowHeight);
 		}
 		return true;
@@ -144,8 +153,8 @@ namespace wyc
 		{
 			return false;
 		}
-		mDevice = std::make_shared<CRenderDeviceD3D12>();
-		if (!mDevice->Initialzie(mWindow.get()))
+		mDevice = new CRenderDeviceD3D12;
+		if (!mDevice->Initialzie(mWindow))
 		{
 			return false;
 		}
