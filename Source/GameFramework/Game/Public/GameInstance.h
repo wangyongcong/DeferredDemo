@@ -3,20 +3,18 @@
 
 namespace wyc
 {
-	class GAME_FRAMEWORK_API CGameInstance
+	class GAME_FRAMEWORK_API GameInstance
 	{
 	public:
 		static bool CreateGameInstance();
 		static void DestroyGameInstance();
+		static GameInstance* Get();
 
-		static std::shared_ptr<CGameInstance> Get();
-
-		CGameInstance();
-		virtual ~CGameInstance();
+		GameInstance();
+		virtual ~GameInstance();
 
 	protected:
-
-		static std::shared_ptr<CGameInstance> sGameInstance;
+		static GameInstance* spGameInstance;
 
 	};
 }

@@ -14,7 +14,7 @@ BOOL WINAPI DllMain(
 	case DLL_PROCESS_ATTACH:
 		// Initialize once for each new process.
 		// Return FALSE to fail DLL load.
-		wyc::CGameApplication::SetModuleHandle(hinstDLL);
+		wyc::GameApplication::SetModuleHandle(hinstDLL);
 		break;
 
 	case DLL_THREAD_ATTACH:

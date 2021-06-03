@@ -6,11 +6,16 @@
 
 namespace wyc
 {
-	class CRenderDeviceD3D12 : public IRenderDevice
+	enum
+	{
+		MAX_GPU_VENDOR_STRING_LENGTH = 64
+	};
+
+	class RenderDeviceD3D12 : public IRenderDevice
 	{
 	public:
-		CRenderDeviceD3D12();
-		virtual ~CRenderDeviceD3D12();
+		RenderDeviceD3D12();
+		virtual ~RenderDeviceD3D12();
 
 		// Implement IRenderDevice
 		virtual bool Initialzie(IGameWindow* gameWindow) override;
@@ -22,6 +27,7 @@ namespace wyc
 
 	protected:
 		bool CreateDevice(HWND hWnd, uint32_t width, uint32_t height);
+		void EnableDebugLayer();
 		void Signal();
 		void WaitForFence();
 
@@ -32,7 +38,10 @@ namespace wyc
 		uint64_t* mFrameFenceValues;
 		uint64_t mFenceValue;
 
-		ID3D12Device2* mDevice;
+		ID3D12Debug* mpDebug;
+		IDXGIFactory6* mpDXGIFactory;
+		IDXGIAdapter4* mpAdapter;
+		ID3D12Device2* mpDevice;
 		ComPtr<ID3D12CommandQueue> mCommandQueue;
 		ComPtr<IDXGISwapChain4> mSwapChain;
 		ComPtr<ID3D12DescriptorHeap> mSwapChainHeap;
@@ -40,7 +49,19 @@ namespace wyc
 		ComPtr<ID3D12CommandAllocator>* mCommandAllocators;
 		ComPtr<ID3D12GraphicsCommandList> mCommandList;
 		ComPtr<ID3D12Fence> mFence;
-		HANDLE hFenceEvent;
+		HANDLE mFenceEvent;
+
+		struct
+		{
+			D3D_FEATURE_LEVEL featureLevel = (D3D_FEATURE_LEVEL)0;
+			D3D12_FEATURE_DATA_D3D12_OPTIONS featureData;
+			D3D12_FEATURE_DATA_D3D12_OPTIONS1 featureData1;
+			size_t DedicatedVideoMemory = 0;
+			uint32_t VendorId;
+			uint32_t DeviceId;
+			uint32_t Revision;
+			std::wstring Name;
+		} GpuInfo;
 	};
 
 } // namespace wyc

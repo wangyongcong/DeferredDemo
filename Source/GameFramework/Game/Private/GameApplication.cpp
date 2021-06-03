@@ -15,14 +15,14 @@
 
 namespace wyc
 {
-	HINSTANCE CGameApplication::sModuleHandle = NULL;
-	HINSTANCE CGameApplication::sApplicationHandle = NULL;
-	CGameApplication* CGameApplication::sApplicationPtr;
+	HINSTANCE GameApplication::sModuleHandle = NULL;
+	HINSTANCE GameApplication::sApplicationHandle = NULL;
+	GameApplication* GameApplication::sApplicationPtr;
 
-	bool CGameApplication::CreateApplication(HINSTANCE hInstance, const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight)
+	bool GameApplication::CreateApplication(HINSTANCE hInstance, const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight)
 	{
 		sApplicationHandle = hInstance;
-		sApplicationPtr = new CGameApplication(appName);
+		sApplicationPtr = new GameApplication(appName);
 		sApplicationPtr->StartLogger();
 		if (!sApplicationPtr->CreateGameWindow(windowWidth, windowHeight))
 		{
@@ -39,7 +39,7 @@ namespace wyc
 		return true;
 	}
 
-	void CGameApplication::DestroyApplication()
+	void GameApplication::DestroyApplication()
 	{
 		if(sApplicationPtr)
 		{
@@ -50,17 +50,17 @@ namespace wyc
 		close_logger();
 	}
 
-	CGameApplication* CGameApplication::Get()
+	GameApplication* GameApplication::Get()
 	{
 		return sApplicationPtr;
 	}
 
-	void CGameApplication::SetModuleHandle(HINSTANCE hModuleInstance)
+	void GameApplication::SetModuleHandle(HINSTANCE hModuleInstance)
 	{
 		sModuleHandle = hModuleInstance;
 	}
 
-	void CGameApplication::Run()
+	void GameApplication::Run()
 	{
 		MSG msg = {0};
 		while (msg.message != WM_QUIT)
@@ -70,58 +70,58 @@ namespace wyc
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
-			mDevice->Render();
+			mpDevice->Render();
 		}
-		mDevice->Close();
+		mpDevice->Close();
 	}
 
-	void CGameApplication::Quit(int exitCode)
+	void GameApplication::Quit(int exitCode)
 	{
 		PostQuitMessage(exitCode);
 	}
 
-	HINSTANCE CGameApplication::GetApplicationHandle() const
+	HINSTANCE GameApplication::GetApplicationHandle() const
 	{
 		return sApplicationHandle;
 	}
 
-	HINSTANCE CGameApplication::GetApplicationModule() const
+	HINSTANCE GameApplication::GetApplicationModule() const
 	{
 		return sModuleHandle != NULL ? sModuleHandle : sApplicationHandle;
 	}
 
-	CGameApplication::CGameApplication(const wchar_t* appName)
+	GameApplication::GameApplication(const wchar_t* appName)
 		: mAppName(appName)
-		, mWindow(nullptr)
-		, mDevice(nullptr)
-		, mGameInstance(nullptr)
+		, mpWindow(nullptr)
+		, mpDevice(nullptr)
+		, mpGameInstance(nullptr)
 	{
 
 	}
 
-	CGameApplication::~CGameApplication()
+	GameApplication::~GameApplication()
 	{
-		CGameInstance::DestroyGameInstance();
+		GameInstance::DestroyGameInstance();
 
-		if (mDevice)
+		if (mpDevice)
 		{
-			delete mDevice;
+			delete mpDevice;
 		}
-		if(mWindow)
+		if(mpWindow)
 		{
-			delete mWindow;
+			delete mpWindow;
 		}
 	}
 
-	void CGameApplication::ShowWindow(bool bVisible)
+	void GameApplication::ShowWindow(bool visible)
 	{
-		if(mWindow)
+		if(mpWindow)
 		{
-			mWindow->SetVisible(bVisible);
+			mpWindow->SetVisible(visible);
 		}
 	}
 
-	void CGameApplication::StartLogger()
+	void GameApplication::StartLogger()
 	{
 		auto path = std::filesystem::current_path();
 		path /= "Saved";
@@ -133,28 +133,28 @@ namespace wyc
 		start_file_logger(ansi.c_str());
 	}
 
-	bool CGameApplication::CreateGameWindow(uint32_t windowWidth, uint32_t windowHeight)
+	bool GameApplication::CreateGameWindow(uint32_t windowWidth, uint32_t windowHeight)
 	{
-		if (!mWindow)
+		if (!mpWindow)
 		{
-			mWindow = new CWindowsGameWindow;
-			return mWindow->CreateGameWindow(mAppName.c_str(), windowWidth, windowHeight);
+			mpWindow = new WindowsGameWindow;
+			return mpWindow->CreateGameWindow(mAppName.c_str(), windowWidth, windowHeight);
 		}
 		return true;
 	}
 
-	bool CGameApplication::CreateDevice()
+	bool GameApplication::CreateDevice()
 	{
-		if (mDevice)
+		if (mpDevice)
 		{
 			return true;
 		}
-		if (!mWindow)
+		if (!mpWindow)
 		{
 			return false;
 		}
-		mDevice = new CRenderDeviceD3D12;
-		if (!mDevice->Initialzie(mWindow))
+		mpDevice = new RenderDeviceD3D12;
+		if (!mpDevice->Initialzie(mpWindow))
 		{
 			return false;
 		}

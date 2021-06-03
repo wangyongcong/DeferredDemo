@@ -8,12 +8,12 @@ using namespace wyc;
 
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
-	if(!CGameApplication::CreateApplication(hInstance, L"GameDeferred", 1290, 720))
+	if(!GameApplication::CreateApplication(hInstance, L"GameDeferred", 1290, 720))
 	{
 		return 1;
 	}
 
-	auto Application = CGameApplication::Get();
+	auto Application = GameApplication::Get();
 	// @todo: exception handling
 	Application->Run();
 

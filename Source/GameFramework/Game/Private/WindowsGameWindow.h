@@ -4,11 +4,11 @@
 
 namespace wyc
 {
-	class GAME_FRAMEWORK_API CWindowsGameWindow : public IGameWindow
+	class GAME_FRAMEWORK_API WindowsGameWindow : public IGameWindow
 	{
 	public:
-		CWindowsGameWindow();
-		virtual ~CWindowsGameWindow();
+		WindowsGameWindow();
+		virtual ~WindowsGameWindow();
 
 		// Implement IGameWinodw
 		virtual bool CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height) override;

@@ -7,25 +7,25 @@
 
 namespace wyc
 {
-	class CGameInstance;
+	class GameInstance;
 
-	class GAME_FRAMEWORK_API CGameApplication
+	class GAME_FRAMEWORK_API GameApplication
 	{
 		static HINSTANCE sModuleHandle;
 		static HINSTANCE sApplicationHandle;
-		static CGameApplication* sApplicationPtr;
+		static GameApplication* sApplicationPtr;
 
 	public:
 		static bool CreateApplication(HINSTANCE hInstance, const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight);
 		static void DestroyApplication();
-		static CGameApplication* Get();
+		static GameApplication* Get();
 
 		static void SetModuleHandle(HINSTANCE hModuleInstance);
 
-		CGameApplication(const wchar_t* appName);
-		virtual ~CGameApplication();
+		GameApplication(const wchar_t* appName);
+		virtual ~GameApplication();
 
-		virtual void ShowWindow(bool bVisible);
+		virtual void ShowWindow(bool visible);
 		virtual void Run();
 		virtual void Quit(int exitCode);
 		virtual HINSTANCE GetApplicationHandle() const;
@@ -37,9 +37,9 @@ namespace wyc
 		virtual bool CreateDevice();
 
 		std::wstring mAppName;
-		CGameInstance* mGameInstance;
-		IGameWindow* mWindow;
-		IRenderDevice* mDevice;
+		GameInstance* mpGameInstance;
+		IGameWindow* mpWindow;
+		IRenderDevice* mpDevice;
 	};
 
 } // namespace wyc

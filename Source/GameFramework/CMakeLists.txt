@@ -4,11 +4,11 @@ project(GameFramework)
 # 设置模块源码
 # -----------
 
-set(PUBLIC_DIR 
+set(GAME_FRAMEWORK_PUBLIC 
 	Game/Public
 )
 
-set(PRIVATE_DIR 
+set(GAME_FRAMEWORK_PRIVATE 
 	Game/Private
 )
 
@@ -54,23 +54,34 @@ set(STB_SOURCE
 # ---------------
 
 # d3d12 helper library
-set(D3D12LIB_DIR D3DLib)
+set(D3D12LIB_PUBLIC D3DLib)
 set(D3D12LIB_SOURCE
-	${D3D12LIB_DIR}/d3dx12.h
+	D3DLib/d3dx12.h
 )
 
-set(THIRD_PARTH_HEADER
-	${D3D12LIB_DIR}
+set(D3D12_MEMORY_ALLOCATOR_PUBLIC ThirdParty/D3D12MemoryAllocator)
+set(D3D12_MEMORY_ALLOCATOR_SOURCE
+	ThirdParty/D3D12MemoryAllocator/D3D12MemAlloc.h
+	ThirdParty/D3D12MemoryAllocator/D3D12MemAlloc.cpp
+	ThirdParty/D3D12MemoryAllocator/D3D12MemAlloc.natvis
+)
+
+set(THIRD_PARTH_PUBLIC
+	${D3D12LIB_PUBLIC}
+	${D3D12_MEMORY_ALLOCATOR_PUBLIC}
 )
 
 set(THIRD_PARTY_SOURCE
 	${D3D12LIB_SOURCE}
+	${D3D12_MEMORY_ALLOCATOR_SOURCE}
 )
 
 source_group("ThirdParty/D3D12Lib" FILES ${D3D12LIB_SOURCE})
+source_group("ThirdParty/D3D12MemoryAllocator" FILES ${D3D12_MEMORY_ALLOCATOR_SOURCE})
 source_group("Game/Public" FILES ${PUBLIC_SOURCE})
 source_group("Game/Private" FILES ${PRIVATE_SOURCE})
 source_group("Stb" FILES ${STB_SOURCE})
+source_group("Natvis" FILES ${NATVIS})
 
 # --------
 # 资源文件
@@ -100,10 +111,10 @@ target_precompile_headers(${PROJECT_NAME}
 )
 
 target_include_directories(${PROJECT_NAME}
-	PUBLIC ${PUBLIC_DIR}
-	${CMAKE_CURRENT_SOURCE_DIR}
-	${THIRD_PARTH_HEADER}
-	${PRIVATE_DIR}
+	PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+	PRIVATE ${THIRD_PARTH_PUBLIC}
+	PRIVATE ${GAME_FRAMEWORK_PRIVATE}
+	PUBLIC ${GAME_FRAMEWORK_PUBLIC}
 )
 
 target_link_libraries(${PROJECT_NAME}

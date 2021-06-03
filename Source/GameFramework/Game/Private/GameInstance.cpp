@@ -3,30 +3,34 @@
 
 namespace wyc
 {
-	std::shared_ptr<wyc::CGameInstance> CGameInstance::sGameInstance;
+	GameInstance* GameInstance::spGameInstance;
 
-	bool CGameInstance::CreateGameInstance()
+	bool GameInstance::CreateGameInstance()
 	{
-		sGameInstance = std::make_shared<CGameInstance>();
+		spGameInstance = new GameInstance();
 		return true;
 	}
 
-	void CGameInstance::DestroyGameInstance()
+	void GameInstance::DestroyGameInstance()
+	{
+		if(spGameInstance)
+		{
+			delete spGameInstance;
+			spGameInstance = nullptr;
+		}
+	}
+
+	GameInstance* GameInstance::Get()
+	{
+		return spGameInstance;
+	}
+
+	GameInstance::GameInstance()
 	{
 
 	}
 
-	std::shared_ptr<wyc::CGameInstance> CGameInstance::Get()
-	{
-		return sGameInstance;
-	}
-
-	CGameInstance::CGameInstance()
-	{
-
-	}
-
-	CGameInstance::~CGameInstance()
+	GameInstance::~GameInstance()
 	{
 
 	}

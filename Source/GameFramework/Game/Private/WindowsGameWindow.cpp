@@ -27,11 +27,11 @@ namespace wyc
 		return 0;
 	}
 
-	bool CWindowsGameWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
+	bool WindowsGameWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
 	{
 		const wchar_t* WindowClassName = L"D3DGameWindow";
 
-		auto pAppInstance = CGameApplication::Get();
+		auto pAppInstance = GameApplication::Get();
 		auto appHandle = pAppInstance->GetApplicationHandle();
 		auto appModule = pAppInstance->GetApplicationModule();
 
@@ -83,7 +83,7 @@ namespace wyc
 		return true;
 	}
 
-	void CWindowsGameWindow::Destroy()
+	void WindowsGameWindow::Destroy()
 	{
 		if(mWindowHandle != NULL)
 		{
@@ -92,7 +92,7 @@ namespace wyc
 		}
 	}
 
-	void CWindowsGameWindow::SetVisible(bool bIsVisible)
+	void WindowsGameWindow::SetVisible(bool bIsVisible)
 	{
 		if(!IS_WINDOW_VALID(mWindowHandle))
 		{
@@ -108,18 +108,18 @@ namespace wyc
 		}
 	}
 
-	bool CWindowsGameWindow::IsWindowValid() const
+	bool WindowsGameWindow::IsWindowValid() const
 	{
 		return IS_WINDOW_VALID(mWindowHandle);
 	}
 
-	void CWindowsGameWindow::GetWindowSize(unsigned& width, unsigned& height) const
+	void WindowsGameWindow::GetWindowSize(unsigned& width, unsigned& height) const
 	{
 		width = mWindowWidth;
 		height = mWindowHeight;
 	}
 
-	CWindowsGameWindow::CWindowsGameWindow()
+	WindowsGameWindow::WindowsGameWindow()
 		: mWindowHandle(NULL)
 		, mWindowWidth(0)
 		, mWindowHeight(0)
@@ -127,7 +127,7 @@ namespace wyc
 
 	}
 
-	CWindowsGameWindow::~CWindowsGameWindow()
+	WindowsGameWindow::~WindowsGameWindow()
 	{
 		Destroy();
 	}
