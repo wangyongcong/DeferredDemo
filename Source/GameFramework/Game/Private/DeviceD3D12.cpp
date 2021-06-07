@@ -27,6 +27,8 @@ namespace wyc
 		, mpDXGIFactory(nullptr)
 		, mpAdapter(nullptr)
 		, mpDevice(nullptr)
+		, mpCommandQueue(nullptr)
+		, mQueueFence(nullptr)
 	{
 	}
 
@@ -47,6 +49,8 @@ namespace wyc
 			delete[] mFrameFenceValues;
 			mFrameFenceValues = nullptr;
 		}
+		ReleaseFence(mQueueFence);
+		SAFE_RELEASE(mpCommandQueue);
 		SAFE_RELEASE(mpDXGIFactory);
 		SAFE_RELEASE(mpDevice);
 		SAFE_RELEASE(mpDebug);
@@ -66,14 +70,10 @@ namespace wyc
 		{
 			return false;
 		}
-
-		// Create command queue
-		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
-		commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-		commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-		commandQueueDesc.NodeMask = 0;
-		CheckAndReturnFalse(mpDevice->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&mCommandQueue)));
+		if (!AddCommandQueue())
+		{
+			return false;
+		}
 
 		// Create swap chain
 		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
@@ -91,7 +91,7 @@ namespace wyc
 
 		ComPtr<IDXGISwapChain1> swapChain1;
 		CheckAndReturnFalse(mpDXGIFactory->CreateSwapChainForHwnd(
-			mCommandQueue.Get(),
+			mpCommandQueue,
 			hWnd,
 			&swapChainDesc,
 			nullptr,
@@ -192,7 +192,7 @@ namespace wyc
 		ID3D12CommandList* const commandLists[] = {
 			mCommandList.Get()
 		};
-		mCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+		mpCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
 
 		Signal();
 
@@ -308,6 +308,54 @@ namespace wyc
 		return true;
 	}
 
+	bool RenderDeviceD3D12::AddCommandQueue()
+	{
+		ASSERT(mpDevice);
+		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
+		commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+		commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+		commandQueueDesc.NodeMask = 0;
+		if(FAILED(mpDevice->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&mpCommandQueue))))
+		{
+			return false;
+		}
+		if(!NewFence(mQueueFence))
+		{
+			return false;
+		}
+		return true;
+	}
+
+	bool RenderDeviceD3D12::NewFence(FFence*& outFence)
+	{
+		ASSERT(mpDevice);
+		outFence = nullptr;
+		ID3D12Fence* pFence;
+		if (FAILED(mpDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pFence))))
+		{
+			return false;
+		}
+		HANDLE hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+		if(hEvent == NULL)
+		{
+			return false;
+		}
+		outFence = new FFence{pFence, hEvent, 0};
+		return true;
+	}
+
+	void RenderDeviceD3D12::ReleaseFence(FFence*& pFence)
+	{
+		if(pFence)
+		{
+			SAFE_RELEASE(pFence->mpDxFence);
+			CloseHandle(pFence->mhWaitEvent);
+			pFence->mhWaitEvent = NULL;
+			pFence = nullptr;
+		}
+	}
+
 	void RenderDeviceD3D12::EnableDebugLayer()
 	{
 		if(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&mpDebug))))
@@ -326,7 +374,7 @@ namespace wyc
 	{
 		uint64_t fenceValueForSignal = ++mFenceValue;
 		mFrameFenceValues[mCurrentBackBufferIndex] = fenceValueForSignal;
-		CHECK_HRESULT(mCommandQueue->Signal(mFence.Get(), mFenceValue));
+		CHECK_HRESULT(mpCommandQueue->Signal(mFence.Get(), mFenceValue));
 
 	}
 

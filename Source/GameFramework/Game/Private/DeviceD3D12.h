@@ -11,6 +11,14 @@ namespace wyc
 		MAX_GPU_VENDOR_STRING_LENGTH = 64
 	};
 
+	struct FFence
+	{
+		ID3D12Fence* mpDxFence;
+		HANDLE mhWaitEvent;
+		uint64_t mFenceValue;
+		uint64_t mPadA;
+	};
+
 	class RenderDeviceD3D12 : public IRenderDevice
 	{
 	public:
@@ -27,6 +35,9 @@ namespace wyc
 
 	protected:
 		bool CreateDevice(HWND hWnd, uint32_t width, uint32_t height);
+		bool AddCommandQueue();
+		bool NewFence(FFence*& outFence);
+		void ReleaseFence(FFence*& pFence);
 		void EnableDebugLayer();
 		void Signal();
 		void WaitForFence();
@@ -42,7 +53,8 @@ namespace wyc
 		IDXGIFactory6* mpDXGIFactory;
 		IDXGIAdapter4* mpAdapter;
 		ID3D12Device2* mpDevice;
-		ComPtr<ID3D12CommandQueue> mCommandQueue;
+		ID3D12CommandQueue* mpCommandQueue;
+		FFence* mQueueFence;
 		ComPtr<IDXGISwapChain4> mSwapChain;
 		ComPtr<ID3D12DescriptorHeap> mSwapChainHeap;
 		ComPtr<ID3D12Resource>* mBackBuffers;
