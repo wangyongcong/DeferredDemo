@@ -17,6 +17,6 @@ namespace wyc
 		virtual void Render() = 0;
 		virtual void Close() = 0;
 		virtual bool CreateSwapChain(const SSwapChainDesc &Desc) = 0;
-		virtual void SwapBuffer() = 0;
+		virtual void Present() = 0;
 	};
 } // namespace wyc

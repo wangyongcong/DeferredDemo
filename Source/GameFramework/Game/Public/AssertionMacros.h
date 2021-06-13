@@ -2,14 +2,8 @@
 
 #define CheckAndReturnFalse(RESULT) if(FAILED((RESULT))) { return false; }
 
-#define ASSERT assert
+#define Ensure(expr) if(!(expr)) {LogError("%s(%s): Ensure fail: %s", __FILE__, __LINE__, #expr); __debugbreak();}
 
-#define CHECK_HRESULT(exp)                                                     \
-{                                                                              \
-	HRESULT hres = (exp);                                                      \
-	if (!SUCCEEDED(hres))                                                      \
-	{                                                                          \
-		LogError("%s: FAILED with HRESULT: %u", #exp, (uint32_t)hres);		   \
-		ASSERT(false);                                                         \
-	}                                                                          \
-}
+#define EnsureMsg(expr, msg) if(!(expr)) {LogError("%s(%s): Ensure fail: %s", __FILE__, __LINE__, (msg)); __debugbreak(); }
+
+#define EnsureHResult(exp) Ensure(SUCCEEDED(exp))

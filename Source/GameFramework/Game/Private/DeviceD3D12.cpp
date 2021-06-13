@@ -20,15 +20,19 @@ namespace wyc
 {
 	RenderDeviceD3D12::RenderDeviceD3D12()
 		: mInitialized(false)
-		, mFrameBuffCount(3)
-		, mFenceValue(0)
+		, mMaxFrameLatency(3)
+		, mFrameCount(0)
+		, mFrameIndex(0)
+		, mBackBufferIndex(0)
 		// D3D12 device data
 		, mpDebug(nullptr)
 		, mpDXGIFactory(nullptr)
 		, mpAdapter(nullptr)
 		, mpDevice(nullptr)
 		, mpCommandQueue(nullptr)
-		, mQueueFence(nullptr)
+		, mpCommandList(nullptr)
+		, mppCommandAllocators(nullptr)
+		, mpCommandFences(nullptr)
 	{
 	}
 
@@ -39,15 +43,23 @@ namespace wyc
 			delete[] mBackBuffers;
 			mBackBuffers = nullptr;
 		}
-		if(mCommandAllocators)
+		if(mppCommandAllocators)
 		{
-			delete[] mCommandAllocators;
-			mCommandAllocators = nullptr;
+			for(uint8_t i = 0; i < mMaxFrameLatency; ++i)
+			{
+				mppCommandAllocators[i]->Release();
+			}
+			delete[] mppCommandAllocators;
+			mppCommandAllocators = nullptr;
 		}
-		if(mFrameFenceValues)
+		if(mpCommandFences)
 		{
-			delete[] mFrameFenceValues;
-			mFrameFenceValues = nullptr;
+			for (uint8_t i = 0; i < mMaxFrameLatency; ++i)
+			{
+				ReleaseFence(mpCommandFences[i]);
+			}
+			delete[] mpCommandFences;
+			mpCommandFences = nullptr;
 		}
 		ReleaseFence(mQueueFence);
 		SAFE_RELEASE(mpCommandQueue);
@@ -70,7 +82,11 @@ namespace wyc
 		{
 			return false;
 		}
-		if (!AddCommandQueue())
+		if (!CreateCommandQueue())
+		{
+			return false;
+		}
+		if(!CreateCommandList())
 		{
 			return false;
 		}
@@ -83,7 +99,7 @@ namespace wyc
 		swapChainDesc.Stereo = FALSE;
 		swapChainDesc.SampleDesc = { 1, 0 };
 		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		swapChainDesc.BufferCount = mFrameBuffCount;
+		swapChainDesc.BufferCount = mMaxFrameLatency;
 		swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
 		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 		swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
@@ -101,11 +117,11 @@ namespace wyc
 
 		CheckAndReturnFalse(mpDXGIFactory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
 		CheckAndReturnFalse(swapChain1.As(&mSwapChain));
-		mCurrentBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
+		mBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
 
 		// create RTV heap for swap chain
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = mFrameBuffCount;
+		heapDesc.NumDescriptors = mMaxFrameLatency;
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
 		CheckAndReturnFalse(mpDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mSwapChainHeap)));
@@ -114,8 +130,8 @@ namespace wyc
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(mSwapChainHeap->GetCPUDescriptorHandleForHeapStart());
 		mDescriptorSizeRTV = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-		mBackBuffers = new ComPtr<ID3D12Resource>[mFrameBuffCount];
-		for (int i = 0; i < mFrameBuffCount; ++i)
+		mBackBuffers = new ComPtr<ID3D12Resource>[mMaxFrameLatency];
+		for (int i = 0; i < mMaxFrameLatency; ++i)
 		{
 			ComPtr<ID3D12Resource> backBuffer;
 			mSwapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer));
@@ -124,53 +140,51 @@ namespace wyc
 			rtvHandle.Offset(mDescriptorSizeRTV);
 		}
 
-		// create command allocator & command list
-		mCommandAllocators = new ComPtr<ID3D12CommandAllocator>[mFrameBuffCount];
-
-		for (int i = 0; i < mFrameBuffCount; ++i)
-		{
-			ComPtr<ID3D12CommandAllocator> commandAllocator;
-			mpDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&commandAllocator));
-			mCommandAllocators[i] = commandAllocator;
-		}
-		mpDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mCommandAllocators[mCurrentBackBufferIndex].Get(), nullptr, IID_PPV_ARGS(&mCommandList));
-		mCommandList->Close();
-
-		mpDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence));
-		mFenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-		mFrameFenceValues = new uint64_t[mFrameBuffCount];
-
 		mInitialized = true;
 		return true;
 	}
 
 	void RenderDeviceD3D12::Render()
 	{
-		auto commandAllocator = mCommandAllocators[mCurrentBackBufferIndex];
-		auto backBuffer = mBackBuffers[mCurrentBackBufferIndex];
+		mFrameIndex = mFrameCount % mMaxFrameLatency;
+		ID3D12CommandAllocator* pAllocator= mppCommandAllocators[mFrameIndex];
+		DeviceFence& fence = mpCommandFences[mFrameIndex];
+		WaitForFence(fence);
 
-		commandAllocator->Reset();
-		mCommandList->Reset(commandAllocator.Get(), nullptr);
+		pAllocator->Reset();
+		mpCommandList->Reset(pAllocator, nullptr);
 
+		auto backBuffer = mBackBuffers[mBackBufferIndex];
 		{
 			CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 				backBuffer.Get(), 
 				D3D12_RESOURCE_STATE_PRESENT,
 				D3D12_RESOURCE_STATE_RENDER_TARGET);
-			mCommandList->ResourceBarrier(1, &barrier);
+			mpCommandList->ResourceBarrier(1, &barrier);
 			float clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
-			CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mCurrentBackBufferIndex, mDescriptorSizeRTV);
-			mCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mBackBufferIndex, mDescriptorSizeRTV);
+			mpCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 		}
 
-		SwapBuffer();
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffer.Get(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET,
+			D3D12_RESOURCE_STATE_PRESENT);
+		mpCommandList->ResourceBarrier(1, &barrier);
+		mpCommandList->Close();
+
+		ID3D12CommandList* const commandLists[] = { mpCommandList };
+		mpCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+		EnsureHResult(mpCommandQueue->Signal(fence.mpDxFence, ++fence.mFenceValue));
+
+		Present();
+		mFrameCount += 1;
 	}
 
 	void RenderDeviceD3D12::Close()
 	{
-		Signal();
-		WaitForFence();
-		CloseHandle(mFenceEvent);
+		DeviceFence& fence = mpCommandFences[mFrameIndex];
+		WaitForFence(fence);
 	}
 
 	bool RenderDeviceD3D12::CreateSwapChain(const SSwapChainDesc& Desc)
@@ -178,28 +192,10 @@ namespace wyc
 		return true;
 	}
 
-	void RenderDeviceD3D12::SwapBuffer()
+	void RenderDeviceD3D12::Present()
 	{
-		auto backBuffer = mBackBuffers[mCurrentBackBufferIndex];
-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffer.Get(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			D3D12_RESOURCE_STATE_PRESENT);
-		mCommandList->ResourceBarrier(1, &barrier);
-
-		mCommandList->Close();
-
-		ID3D12CommandList* const commandLists[] = {
-			mCommandList.Get()
-		};
-		mpCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
-
-		Signal();
-
-		CHECK_HRESULT(mSwapChain->Present(1, 0));
-		mCurrentBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
-
-		WaitForFence();
+		EnsureHResult(mSwapChain->Present(1, 0));
+		mBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
 	}
 
 	bool RenderDeviceD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height)
@@ -226,7 +222,7 @@ namespace wyc
 #ifdef _DEBUG
 		createFactoryFlags = DXGI_CREATE_FACTORY_DEBUG;
 #endif
-		CHECK_HRESULT(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&mpDXGIFactory)));
+		EnsureHResult(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&mpDXGIFactory)));
 		IDXGIAdapter4* adapter;
 		for (UINT i = 0; mpDXGIFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND && !mpDevice; ++i)
 		{
@@ -247,14 +243,14 @@ namespace wyc
 						continue;
 					}
 					D3D12CreateDevice(adapter, level, IID_PPV_ARGS(&mpDevice));
-					GpuInfo.featureLevel = level;
-					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &GpuInfo.featureData, sizeof(GpuInfo.featureData));
-					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &GpuInfo.featureData1, sizeof(GpuInfo.featureData1));
-					GpuInfo.DedicatedVideoMemory = adapterDesc.DedicatedVideoMemory;
-					GpuInfo.VendorId = adapterDesc.VendorId;
-					GpuInfo.DeviceId = adapterDesc.DeviceId;
-					GpuInfo.Revision = adapterDesc.Revision;
-					GpuInfo.Name = adapterDesc.Description;
+					mGpuInfo.featureLevel = level;
+					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &mGpuInfo.featureData, sizeof(mGpuInfo.featureData));
+					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &mGpuInfo.featureData1, sizeof(mGpuInfo.featureData1));
+					mGpuInfo.DedicatedVideoMemory = adapterDesc.DedicatedVideoMemory;
+					mGpuInfo.VendorId = adapterDesc.VendorId;
+					mGpuInfo.DeviceId = adapterDesc.DeviceId;
+					mGpuInfo.Revision = adapterDesc.Revision;
+					mGpuInfo.Name = adapterDesc.Description;
 					break;
 				}
 			}
@@ -265,7 +261,7 @@ namespace wyc
 			return false;
 		}
 
-		LogInfo("Device: %s", GpuInfo.Name);
+		LogInfo("Device: %s", mGpuInfo.Name);
 
 #ifdef _DEBUG
 		ComPtr<ID3D12InfoQueue> deviceInfoQueue;
@@ -308,9 +304,9 @@ namespace wyc
 		return true;
 	}
 
-	bool RenderDeviceD3D12::AddCommandQueue()
+	bool RenderDeviceD3D12::CreateCommandQueue()
 	{
-		ASSERT(mpDevice);
+		Ensure(mpDevice);
 		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
 		commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
 		commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
@@ -320,17 +316,16 @@ namespace wyc
 		{
 			return false;
 		}
-		if(!NewFence(mQueueFence))
+		if(!CreateFence(mQueueFence))
 		{
 			return false;
 		}
 		return true;
 	}
 
-	bool RenderDeviceD3D12::NewFence(FFence*& outFence)
+	bool RenderDeviceD3D12::CreateFence(DeviceFence& outFence)
 	{
-		ASSERT(mpDevice);
-		outFence = nullptr;
+		Ensure(mpDevice);
 		ID3D12Fence* pFence;
 		if (FAILED(mpDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pFence))))
 		{
@@ -339,21 +334,42 @@ namespace wyc
 		HANDLE hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		if(hEvent == NULL)
 		{
+			pFence->Release();
 			return false;
 		}
-		outFence = new FFence{pFence, hEvent, 0};
+		outFence.mpDxFence = pFence;
+		outFence.mhWaitEvent = hEvent;
+		outFence.mFenceValue = 0;
 		return true;
 	}
 
-	void RenderDeviceD3D12::ReleaseFence(FFence*& pFence)
+	void RenderDeviceD3D12::ReleaseFence(DeviceFence& fence)
 	{
-		if(pFence)
+		SAFE_RELEASE(fence.mpDxFence);
+		SAFE_CLOSE_HANDLE(fence.mhWaitEvent);
+	}
+
+	void RenderDeviceD3D12::WaitForFence(DeviceFence& fence)
+	{
+		if(fence.mpDxFence->GetCompletedValue() < fence.mFenceValue)
 		{
-			SAFE_RELEASE(pFence->mpDxFence);
-			CloseHandle(pFence->mhWaitEvent);
-			pFence->mhWaitEvent = NULL;
-			pFence = nullptr;
+			fence.mpDxFence->SetEventOnCompletion(fence.mFenceValue, fence.mhWaitEvent);
+			WaitForSingleObject(fence.mhWaitEvent, INFINITE);
 		}
+	}
+
+	bool RenderDeviceD3D12::CreateCommandList()
+	{
+		mppCommandAllocators = new ID3D12CommandAllocator*[mMaxFrameLatency];
+		mpCommandFences = new DeviceFence[mMaxFrameLatency];
+		for(uint8_t i = 0; i < mMaxFrameLatency; ++i)
+		{
+			EnsureHResult(mpDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mppCommandAllocators[i])));
+			Ensure(CreateFence(mpCommandFences[i]));
+		}
+		EnsureHResult(mpDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mppCommandAllocators[0], nullptr, IID_PPV_ARGS(&mpCommandList)));
+		mpCommandList->Close();
+		return true;
 	}
 
 	void RenderDeviceD3D12::EnableDebugLayer()
@@ -369,23 +385,4 @@ namespace wyc
 			}
 		}
 	}
-
-	void RenderDeviceD3D12::Signal()
-	{
-		uint64_t fenceValueForSignal = ++mFenceValue;
-		mFrameFenceValues[mCurrentBackBufferIndex] = fenceValueForSignal;
-		CHECK_HRESULT(mpCommandQueue->Signal(mFence.Get(), mFenceValue));
-
-	}
-
-	void RenderDeviceD3D12::WaitForFence()
-	{
-		if (mFence->GetCompletedValue() < mFenceValue)
-		{
-			mFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
-			DWORD duration = (DWORD)(std::chrono::milliseconds::max().count());
-			::WaitForSingleObject(mFenceEvent, duration);
-		}
-	}
-
 } // namespace wyc
