@@ -13,10 +13,11 @@ namespace wyc
 	class IRenderDevice
 	{
 	public:
-		virtual bool Initialzie(IGameWindow* gameWindow) = 0;
+		virtual bool Initialize(IGameWindow* gameWindow) = 0;
+		virtual void Release() = 0;
 		virtual void Render() = 0;
-		virtual void Close() = 0;
 		virtual bool CreateSwapChain(const SSwapChainDesc &Desc) = 0;
 		virtual void Present() = 0;
+		virtual void Close() = 0;
 	};
 } // namespace wyc

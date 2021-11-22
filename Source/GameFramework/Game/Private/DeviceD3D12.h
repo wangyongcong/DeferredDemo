@@ -32,6 +32,14 @@ namespace wyc
 		std::wstring Name;
 	};
 
+	enum class ERenderDeviceState : uint8_t
+	{
+		DEVICE_EMPTY = 0,
+		DEVICE_INITIALIZED,
+		DEVICE_CLOSED,
+		DEVICE_RELEASED,
+	};
+
 	class RenderDeviceD3D12 : public IRenderDevice
 	{
 	public:
@@ -39,11 +47,12 @@ namespace wyc
 		virtual ~RenderDeviceD3D12();
 
 		// Implement IRenderDevice
-		virtual bool Initialzie(IGameWindow* gameWindow) override;
+		virtual bool Initialize(IGameWindow* gameWindow) override;
+		virtual void Release() override;
 		virtual void Render() override;
-		virtual void Close() override;
 		virtual bool CreateSwapChain(const SSwapChainDesc& Desc) override;
 		virtual void Present() override;
+		virtual void Close() override;
 		// IRenderDevice
 
 	protected:
@@ -55,7 +64,7 @@ namespace wyc
 		void ReleaseFence(DeviceFence& pFence);
 		void WaitForFence(DeviceFence& pFence);
 
-		bool mInitialized;
+		ERenderDeviceState mDeviceState;
 		uint8_t mMaxFrameLatency;
 		uint64_t mFrameCount;
 		uint32_t mFrameIndex;
@@ -73,9 +82,9 @@ namespace wyc
 		ID3D12CommandAllocator** mppCommandAllocators;
 		DeviceFence* mpCommandFences;
 
-		ComPtr<IDXGISwapChain4> mSwapChain;
-		ComPtr<ID3D12DescriptorHeap> mSwapChainHeap;
-		ComPtr<ID3D12Resource>* mBackBuffers;
+		IDXGISwapChain4* mSwapChain;
+		ID3D12DescriptorHeap* mSwapChainHeap;
+		ID3D12Resource** mBackBuffers;
 
 		GPUInfo mGpuInfo;
 	};

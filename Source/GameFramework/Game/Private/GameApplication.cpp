@@ -105,11 +105,15 @@ namespace wyc
 
 		if (mpDevice)
 		{
+			mpDevice->Release();
 			delete mpDevice;
+			mpDevice = nullptr;
 		}
 		if(mpWindow)
 		{
+			mpWindow->Destroy();
 			delete mpWindow;
+			mpWindow = nullptr;
 		}
 	}
 
@@ -154,7 +158,7 @@ namespace wyc
 			return false;
 		}
 		mpDevice = new RenderDeviceD3D12;
-		if (!mpDevice->Initialzie(mpWindow))
+		if (!mpDevice->Initialize(mpWindow))
 		{
 			return false;
 		}
