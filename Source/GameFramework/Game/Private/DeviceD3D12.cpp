@@ -19,7 +19,7 @@
 namespace wyc
 {
 	RenderDeviceD3D12::RenderDeviceD3D12()
-		: mInitialized(false)
+		: mDeviceState(ERenderDeviceState::DEVICE_EMPTY)
 		, mMaxFrameLatency(3)
 		, mFrameCount(0)
 		, mFrameIndex(0)
@@ -33,44 +33,20 @@ namespace wyc
 		, mpCommandList(nullptr)
 		, mppCommandAllocators(nullptr)
 		, mpCommandFences(nullptr)
+		, mSwapChain(nullptr)
+		, mSwapChainHeap(nullptr)
+		, mBackBuffers(nullptr)
 	{
 	}
 
 	RenderDeviceD3D12::~RenderDeviceD3D12()
 	{
-		if(mBackBuffers)
-		{
-			delete[] mBackBuffers;
-			mBackBuffers = nullptr;
-		}
-		if(mppCommandAllocators)
-		{
-			for(uint8_t i = 0; i < mMaxFrameLatency; ++i)
-			{
-				mppCommandAllocators[i]->Release();
-			}
-			delete[] mppCommandAllocators;
-			mppCommandAllocators = nullptr;
-		}
-		if(mpCommandFences)
-		{
-			for (uint8_t i = 0; i < mMaxFrameLatency; ++i)
-			{
-				ReleaseFence(mpCommandFences[i]);
-			}
-			delete[] mpCommandFences;
-			mpCommandFences = nullptr;
-		}
-		ReleaseFence(mQueueFence);
-		SAFE_RELEASE(mpCommandQueue);
-		SAFE_RELEASE(mpDXGIFactory);
-		SAFE_RELEASE(mpDevice);
-		SAFE_RELEASE(mpDebug);
+		Release();
 	}
 
-	bool RenderDeviceD3D12::Initialzie(IGameWindow* gameWindow)
+	bool RenderDeviceD3D12::Initialize(IGameWindow* gameWindow)
 	{
-		if (mInitialized)
+		if (mDeviceState >= ERenderDeviceState::DEVICE_INITIALIZED)
 		{
 			return true;
 		}
@@ -105,7 +81,7 @@ namespace wyc
 		swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 		swapChainDesc.Flags = 0;
 
-		ComPtr<IDXGISwapChain1> swapChain1;
+		IDXGISwapChain1* swapChain1;
 		CheckAndReturnFalse(mpDXGIFactory->CreateSwapChainForHwnd(
 			mpCommandQueue,
 			hWnd,
@@ -116,7 +92,9 @@ namespace wyc
 		));
 
 		CheckAndReturnFalse(mpDXGIFactory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
-		CheckAndReturnFalse(swapChain1.As(&mSwapChain));
+		// CheckAndReturnFalse(swapChain1.As(&mSwapChain));
+		CheckAndReturnFalse(swapChain1->QueryInterface(IID_PPV_ARGS(&mSwapChain)));
+		swapChain1->Release();
 		mBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
 
 		// create RTV heap for swap chain
@@ -130,18 +108,66 @@ namespace wyc
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(mSwapChainHeap->GetCPUDescriptorHandleForHeapStart());
 		mDescriptorSizeRTV = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-		mBackBuffers = new ComPtr<ID3D12Resource>[mMaxFrameLatency];
+		mBackBuffers = new ID3D12Resource*[mMaxFrameLatency];
 		for (int i = 0; i < mMaxFrameLatency; ++i)
 		{
-			ComPtr<ID3D12Resource> backBuffer;
+			ID3D12Resource* backBuffer = nullptr;
 			mSwapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer));
-			mpDevice->CreateRenderTargetView(backBuffer.Get(), nullptr, rtvHandle);
+			mpDevice->CreateRenderTargetView(backBuffer, nullptr, rtvHandle);
 			mBackBuffers[i] = backBuffer;
 			rtvHandle.Offset(mDescriptorSizeRTV);
 		}
-
-		mInitialized = true;
+		
+		mDeviceState = ERenderDeviceState::DEVICE_INITIALIZED;
 		return true;
+	}
+
+	void RenderDeviceD3D12::Release()
+	{
+		if(mDeviceState >= ERenderDeviceState::DEVICE_RELEASED || mDeviceState < ERenderDeviceState::DEVICE_INITIALIZED)
+		{
+			return;
+		}
+		mDeviceState = ERenderDeviceState::DEVICE_RELEASED;
+
+		if (mppCommandAllocators)
+		{
+			for (uint8_t i = 0; i < mMaxFrameLatency; ++i)
+			{
+				mppCommandAllocators[i]->Release();
+			}
+			delete[] mppCommandAllocators;
+			mppCommandAllocators = nullptr;
+		}
+		if (mpCommandFences)
+		{
+			for (uint8_t i = 0; i < mMaxFrameLatency; ++i)
+			{
+				ReleaseFence(mpCommandFences[i]);
+			}
+			delete[] mpCommandFences;
+			mpCommandFences = nullptr;
+		}
+		ReleaseFence(mQueueFence);
+
+		if (mBackBuffers)
+		{
+			for (int i = 0; i < mMaxFrameLatency; ++i)
+			{
+				ID3D12Resource* buff = mBackBuffers[i];
+				SAFE_RELEASE(buff);
+			}
+			delete[] mBackBuffers;
+			mBackBuffers = nullptr;
+		}
+		SAFE_RELEASE(mSwapChain);
+		SAFE_RELEASE(mSwapChainHeap);
+
+		SAFE_RELEASE(mpCommandQueue);
+		SAFE_RELEASE(mpDXGIFactory);
+		SAFE_RELEASE(mpDevice);
+		SAFE_RELEASE(mpDebug);
+
 	}
 
 	void RenderDeviceD3D12::Render()
@@ -157,9 +183,7 @@ namespace wyc
 		auto backBuffer = mBackBuffers[mBackBufferIndex];
 		{
 			CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-				backBuffer.Get(), 
-				D3D12_RESOURCE_STATE_PRESENT,
-				D3D12_RESOURCE_STATE_RENDER_TARGET);
+				backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			mpCommandList->ResourceBarrier(1, &barrier);
 			float clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
 			CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mBackBufferIndex, mDescriptorSizeRTV);
@@ -167,9 +191,7 @@ namespace wyc
 		}
 
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffer.Get(),
-			D3D12_RESOURCE_STATE_RENDER_TARGET,
-			D3D12_RESOURCE_STATE_PRESENT);
+			backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		mpCommandList->ResourceBarrier(1, &barrier);
 		mpCommandList->Close();
 
@@ -183,8 +205,12 @@ namespace wyc
 
 	void RenderDeviceD3D12::Close()
 	{
-		DeviceFence& fence = mpCommandFences[mFrameIndex];
-		WaitForFence(fence);
+		if(mDeviceState == ERenderDeviceState::DEVICE_INITIALIZED)
+		{
+			mDeviceState = ERenderDeviceState::DEVICE_CLOSED;
+			DeviceFence& fence = mpCommandFences[mFrameIndex];
+			WaitForFence(fence);
+		}
 	}
 
 	bool RenderDeviceD3D12::CreateSwapChain(const SSwapChainDesc& Desc)
