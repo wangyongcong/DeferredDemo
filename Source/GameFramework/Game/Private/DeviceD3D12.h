@@ -63,6 +63,7 @@ namespace wyc
 		bool CreateFence(DeviceFence& outFence);
 		void ReleaseFence(DeviceFence& pFence);
 		void WaitForFence(DeviceFence& pFence);
+		void ReportLiveObjects();
 
 		ERenderDeviceState mDeviceState;
 		uint8_t mMaxFrameLatency;
@@ -75,6 +76,7 @@ namespace wyc
 		IDXGIFactory6* mpDXGIFactory;
 		IDXGIAdapter4* mpAdapter;
 		ID3D12Device2* mpDevice;
+		ID3D12InfoQueue* mpDeviceInfoQueue;
 		ID3D12CommandQueue* mpCommandQueue;
 		DeviceFence mQueueFence;
 

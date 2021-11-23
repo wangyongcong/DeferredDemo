@@ -6,7 +6,7 @@
 #include <dxgi1_6.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
-
+#include <dxgidebug.h>
 // D3D12 extension library.
 #include <d3dx12.h>
 
@@ -163,11 +163,23 @@ namespace wyc
 		SAFE_RELEASE(mSwapChain);
 		SAFE_RELEASE(mSwapChainHeap);
 
+		SAFE_RELEASE(mpCommandList);
 		SAFE_RELEASE(mpCommandQueue);
-		SAFE_RELEASE(mpDXGIFactory);
-		SAFE_RELEASE(mpDevice);
-		SAFE_RELEASE(mpDebug);
 
+		SAFE_RELEASE(mpAdapter);
+		SAFE_RELEASE(mpDXGIFactory);
+
+		if(mpDeviceInfoQueue)
+		{
+			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, false);
+			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, false);
+			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, false);
+			SAFE_RELEASE(mpDeviceInfoQueue);
+		}
+		SAFE_RELEASE(mpDebug);
+		SAFE_RELEASE(mpDevice);
+
+		ReportLiveObjects();
 	}
 
 	void RenderDeviceD3D12::Render()
@@ -249,6 +261,7 @@ namespace wyc
 		createFactoryFlags = DXGI_CREATE_FACTORY_DEBUG;
 #endif
 		EnsureHResult(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&mpDXGIFactory)));
+
 		IDXGIAdapter4* adapter;
 		for (UINT i = 0; mpDXGIFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND && !mpDevice; ++i)
 		{
@@ -286,16 +299,14 @@ namespace wyc
 		{
 			return false;
 		}
-
 		LogInfo("Device: %s", mGpuInfo.Name);
 
 #ifdef _DEBUG
-		ComPtr<ID3D12InfoQueue> deviceInfoQueue;
-		if (SUCCEEDED(mpDevice->QueryInterface(IID_PPV_ARGS(&deviceInfoQueue))))
+		if (SUCCEEDED(mpDevice->QueryInterface(IID_PPV_ARGS(&mpDeviceInfoQueue))))
 		{
-			deviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-			deviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
-			deviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
+			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
 		}
 
 		// Suppress whole categories of messages
@@ -324,7 +335,7 @@ namespace wyc
 		infoFilter.DenyList.NumIDs = _countof(DenyIds);
 		infoFilter.DenyList.pIDList = DenyIds;
 
-		CheckAndReturnFalse(deviceInfoQueue->PushStorageFilter(&infoFilter));
+		CheckAndReturnFalse(mpDeviceInfoQueue->PushStorageFilter(&infoFilter));
 #endif // _DEBUG
 		
 		return true;
@@ -382,6 +393,17 @@ namespace wyc
 			fence.mpDxFence->SetEventOnCompletion(fence.mFenceValue, fence.mhWaitEvent);
 			WaitForSingleObject(fence.mhWaitEvent, INFINITE);
 		}
+	}
+
+	void RenderDeviceD3D12::ReportLiveObjects()
+	{
+#ifdef _DEBUG
+		ComPtr<IDXGIDebug1> dxgiDebug;
+		if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))))
+		{
+			dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_SUMMARY | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
+		}
+#endif
 	}
 
 	bool RenderDeviceD3D12::CreateCommandList()
