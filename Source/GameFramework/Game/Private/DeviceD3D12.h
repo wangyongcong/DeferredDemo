@@ -63,7 +63,7 @@ namespace wyc
 		bool CreateFence(DeviceFence& outFence);
 		void ReleaseFence(DeviceFence& pFence);
 		void WaitForFence(DeviceFence& pFence);
-		void ReportLiveObjects();
+		void ReportLiveObjects(const wchar_t* prompt=0);
 
 		ERenderDeviceState mDeviceState;
 		uint8_t mMaxFrameLatency;

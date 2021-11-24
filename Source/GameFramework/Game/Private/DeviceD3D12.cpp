@@ -92,7 +92,6 @@ namespace wyc
 		));
 
 		CheckAndReturnFalse(mpDXGIFactory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
-		// CheckAndReturnFalse(swapChain1.As(&mSwapChain));
 		CheckAndReturnFalse(swapChain1->QueryInterface(IID_PPV_ARGS(&mSwapChain)));
 		swapChain1->Release();
 		mBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
@@ -179,7 +178,7 @@ namespace wyc
 		SAFE_RELEASE(mpDebug);
 		SAFE_RELEASE(mpDevice);
 
-		ReportLiveObjects();
+		ReportLiveObjects(L"Check leaks on shutdown");
 	}
 
 	void RenderDeviceD3D12::Render()
@@ -263,7 +262,7 @@ namespace wyc
 		EnsureHResult(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&mpDXGIFactory)));
 
 		IDXGIAdapter4* adapter;
-		for (UINT i = 0; mpDXGIFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND && !mpDevice; ++i)
+		for (UINT i = 0; mpDXGIFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND; ++i)
 		{
 			DXGI_ADAPTER_DESC3 adapterDesc;
 			adapter->GetDesc3(&adapterDesc);
@@ -277,11 +276,11 @@ namespace wyc
 					{
 						continue;
 					}
-					if(FAILED(adapter->QueryInterface(IID_PPV_ARGS(&mpAdapter))))
+					if(FAILED(D3D12CreateDevice(adapter, level, IID_PPV_ARGS(&mpDevice))))
 					{
 						continue;
 					}
-					D3D12CreateDevice(adapter, level, IID_PPV_ARGS(&mpDevice));
+					mpAdapter = adapter;
 					mGpuInfo.featureLevel = level;
 					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &mGpuInfo.featureData, sizeof(mGpuInfo.featureData));
 					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &mGpuInfo.featureData1, sizeof(mGpuInfo.featureData1));
@@ -292,6 +291,10 @@ namespace wyc
 					mGpuInfo.Name = adapterDesc.Description;
 					break;
 				}
+			}
+			if(mpDevice)
+			{
+				break;
 			}
 			adapter->Release();
 		}
@@ -395,9 +398,15 @@ namespace wyc
 		}
 	}
 
-	void RenderDeviceD3D12::ReportLiveObjects()
+	void RenderDeviceD3D12::ReportLiveObjects(const wchar_t* prompt)
 	{
 #ifdef _DEBUG
+		if(prompt)
+		{
+			OutputDebugStringW(L"[");
+			OutputDebugStringW(prompt);
+			OutputDebugStringW(L"]\n");
+		}
 		ComPtr<IDXGIDebug1> dxgiDebug;
 		if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))))
 		{
