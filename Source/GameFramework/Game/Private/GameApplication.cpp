@@ -13,6 +13,11 @@
 #include "DeviceD3D12.h"
 #endif
 
+#include "IMemory.h"
+
+extern bool MemAllocInit();
+extern void MemAllocExit();
+
 namespace wyc
 {
 	HINSTANCE GameApplication::sModuleHandle = NULL;
@@ -21,8 +26,9 @@ namespace wyc
 
 	bool GameApplication::CreateApplication(HINSTANCE hInstance, const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight)
 	{
+		MemAllocInit();
 		sApplicationHandle = hInstance;
-		sApplicationPtr = new GameApplication(appName);
+		sApplicationPtr = tf_new(GameApplication, appName);
 		sApplicationPtr->StartLogger();
 		if (!sApplicationPtr->CreateGameWindow(windowWidth, windowHeight))
 		{
@@ -43,11 +49,12 @@ namespace wyc
 	{
 		if(sApplicationPtr)
 		{
-			delete sApplicationPtr;
+			tf_delete(sApplicationPtr);
 			sApplicationPtr = nullptr;
 			Log("Application exited");
 		}
 		close_logger();
+		MemAllocExit();
 	}
 
 	GameApplication* GameApplication::Get()
@@ -106,13 +113,13 @@ namespace wyc
 		if (mpDevice)
 		{
 			mpDevice->Release();
-			delete mpDevice;
+			tf_delete(mpDevice);
 			mpDevice = nullptr;
 		}
 		if(mpWindow)
 		{
 			mpWindow->Destroy();
-			delete mpWindow;
+			tf_delete(mpWindow);
 			mpWindow = nullptr;
 		}
 	}
@@ -141,7 +148,7 @@ namespace wyc
 	{
 		if (!mpWindow)
 		{
-			mpWindow = new WindowsGameWindow;
+			mpWindow = tf_new(WindowsGameWindow);
 			return mpWindow->CreateGameWindow(mAppName.c_str(), windowWidth, windowHeight);
 		}
 		return true;
@@ -157,7 +164,7 @@ namespace wyc
 		{
 			return false;
 		}
-		mpDevice = new RenderDeviceD3D12;
+		mpDevice = tf_new(RenderDeviceD3D12);
 		if (!mpDevice->Initialize(mpWindow))
 		{
 			return false;

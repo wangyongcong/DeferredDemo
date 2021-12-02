@@ -84,9 +84,9 @@ namespace wyc
 		ID3D12CommandAllocator** mppCommandAllocators;
 		DeviceFence* mpCommandFences;
 
-		IDXGISwapChain4* mSwapChain;
-		ID3D12DescriptorHeap* mSwapChainHeap;
-		ID3D12Resource** mBackBuffers;
+		IDXGISwapChain4* mpSwapChain;
+		ID3D12DescriptorHeap* mpSwapChainHeap;
+		ID3D12Resource** mppBackBuffers;
 
 		GPUInfo mGpuInfo;
 	};

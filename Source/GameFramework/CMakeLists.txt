@@ -22,6 +22,8 @@ set(PUBLIC_SOURCE
 	Game/Public/AssertionMacros.h
 	Game/Public/LogMacros.h
 	Game/Public/Utility.h
+	Game/Public/IMemory.h
+	Game/Public/Platform.h
 )
 
 set(PRIVATE_SOURCE
@@ -37,6 +39,7 @@ set(PRIVATE_SOURCE
 	Game/Private/DeviceD3D12.h
 	Game/Private/DeviceD3D12.cpp
 	Game/Private/Utility.cpp
+	Game/Private/MemoryTracking.cpp
 )
 
 set(MODULE_SOURCE
@@ -66,7 +69,15 @@ set(D3D12_MEMORY_ALLOCATOR_SOURCE
 	ThirdParty/D3D12MemoryAllocator/D3D12MemAlloc.natvis
 )
 
+set(MEMORY_MANAGER_PUBLIC ThirdParty/MemoryManager)
+set(MEMORY_MANAGER_SOURCE
+	ThirdParty/MemoryManager/mmgr.cpp
+	ThirdParty/MemoryManager/mmgr.h
+	ThirdParty/MemoryManager/nommgr.h
+)
+
 set(THIRD_PARTH_PUBLIC
+	ThirdParty
 	${D3D12LIB_PUBLIC}
 	${D3D12_MEMORY_ALLOCATOR_PUBLIC}
 )
@@ -74,10 +85,12 @@ set(THIRD_PARTH_PUBLIC
 set(THIRD_PARTY_SOURCE
 	${D3D12LIB_SOURCE}
 	${D3D12_MEMORY_ALLOCATOR_SOURCE}
+	${MEMORY_MANAGER_SOURCE}
 )
 
 source_group("ThirdParty/D3D12Lib" FILES ${D3D12LIB_SOURCE})
 source_group("ThirdParty/D3D12MemoryAllocator" FILES ${D3D12_MEMORY_ALLOCATOR_SOURCE})
+source_group("ThirdParty/MemoryManager" FILES ${MEMORY_MANAGER_SOURCE})
 source_group("Game/Public" FILES ${PUBLIC_SOURCE})
 source_group("Game/Private" FILES ${PRIVATE_SOURCE})
 source_group("Stb" FILES ${STB_SOURCE})
@@ -98,6 +111,12 @@ source_group("Resources/Icon" FILES Resources/Icon/app_icon.ico)
 # --------
 # 设置工程
 # --------
+
+option(USE_MEMORY_TRACKING "Enable memory tracking" "ON")
+
+if (USE_MEMORY_TRACKING)
+	add_definitions(-DUSE_MEMORY_TRACKING)
+endif()
 
 add_library(${PROJECT_NAME} SHARED
 	${THIRD_PARTY_SOURCE}

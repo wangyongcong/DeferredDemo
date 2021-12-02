@@ -33,9 +33,9 @@ namespace wyc
 		, mpCommandList(nullptr)
 		, mppCommandAllocators(nullptr)
 		, mpCommandFences(nullptr)
-		, mSwapChain(nullptr)
-		, mSwapChainHeap(nullptr)
-		, mBackBuffers(nullptr)
+		, mpSwapChain(nullptr)
+		, mpSwapChainHeap(nullptr)
+		, mppBackBuffers(nullptr)
 	{
 	}
 
@@ -92,28 +92,28 @@ namespace wyc
 		));
 
 		CheckAndReturnFalse(mpDXGIFactory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
-		CheckAndReturnFalse(swapChain1->QueryInterface(IID_PPV_ARGS(&mSwapChain)));
+		CheckAndReturnFalse(swapChain1->QueryInterface(IID_PPV_ARGS(&mpSwapChain)));
 		swapChain1->Release();
-		mBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
+		mBackBufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
 
 		// create RTV heap for swap chain
 		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 		heapDesc.NumDescriptors = mMaxFrameLatency;
 		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
-		CheckAndReturnFalse(mpDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mSwapChainHeap)));
+		CheckAndReturnFalse(mpDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mpSwapChainHeap)));
 
 		// create render target
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(mSwapChainHeap->GetCPUDescriptorHandleForHeapStart());
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(mpSwapChainHeap->GetCPUDescriptorHandleForHeapStart());
 		mDescriptorSizeRTV = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-		mBackBuffers = new ID3D12Resource*[mMaxFrameLatency];
+		mppBackBuffers = new ID3D12Resource*[mMaxFrameLatency];
 		for (int i = 0; i < mMaxFrameLatency; ++i)
 		{
 			ID3D12Resource* backBuffer = nullptr;
-			mSwapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer));
+			mpSwapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer));
 			mpDevice->CreateRenderTargetView(backBuffer, nullptr, rtvHandle);
-			mBackBuffers[i] = backBuffer;
+			mppBackBuffers[i] = backBuffer;
 			rtvHandle.Offset(mDescriptorSizeRTV);
 		}
 		
@@ -149,18 +149,18 @@ namespace wyc
 		}
 		ReleaseFence(mQueueFence);
 
-		if (mBackBuffers)
+		if (mppBackBuffers)
 		{
 			for (int i = 0; i < mMaxFrameLatency; ++i)
 			{
-				ID3D12Resource* buff = mBackBuffers[i];
+				ID3D12Resource* buff = mppBackBuffers[i];
 				SAFE_RELEASE(buff);
 			}
-			delete[] mBackBuffers;
-			mBackBuffers = nullptr;
+			delete[] mppBackBuffers;
+			mppBackBuffers = nullptr;
 		}
-		SAFE_RELEASE(mSwapChain);
-		SAFE_RELEASE(mSwapChainHeap);
+		SAFE_RELEASE(mpSwapChain);
+		SAFE_RELEASE(mpSwapChainHeap);
 
 		SAFE_RELEASE(mpCommandList);
 		SAFE_RELEASE(mpCommandQueue);
@@ -191,13 +191,13 @@ namespace wyc
 		pAllocator->Reset();
 		mpCommandList->Reset(pAllocator, nullptr);
 
-		auto backBuffer = mBackBuffers[mBackBufferIndex];
+		auto backBuffer = mppBackBuffers[mBackBufferIndex];
 		{
 			CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
 				backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 			mpCommandList->ResourceBarrier(1, &barrier);
 			float clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
-			CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mBackBufferIndex, mDescriptorSizeRTV);
+			CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mpSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mBackBufferIndex, mDescriptorSizeRTV);
 			mpCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 		}
 
@@ -231,8 +231,8 @@ namespace wyc
 
 	void RenderDeviceD3D12::Present()
 	{
-		EnsureHResult(mSwapChain->Present(1, 0));
-		mBackBufferIndex = mSwapChain->GetCurrentBackBufferIndex();
+		EnsureHResult(mpSwapChain->Present(1, 0));
+		mBackBufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
 	}
 
 	bool RenderDeviceD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height)
