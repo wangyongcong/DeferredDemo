@@ -7,7 +7,7 @@
 
 namespace wyc
 {
-	class GameInstance;
+	class IGameInstance;
 
 	class GAME_FRAMEWORK_API GameApplication
 	{
@@ -26,10 +26,18 @@ namespace wyc
 		virtual ~GameApplication();
 
 		virtual void ShowWindow(bool visible);
-		virtual void Run();
-		virtual void Quit(int exitCode);
+		virtual void StartGame(IGameInstance* pGame);
+		virtual void QuitGame(int exitCode);
 		virtual HINSTANCE GetApplicationHandle() const;
 		virtual HINSTANCE GetApplicationModule() const;
+
+		inline IRenderDevice* GetDevice() {
+			return mpDevice;
+		}
+
+		inline IGameWindow* GetWindow() {
+			return mpWindow;
+		}
 
 	protected:
 		virtual void StartLogger();
@@ -37,7 +45,7 @@ namespace wyc
 		virtual bool CreateDevice();
 
 		std::wstring mAppName;
-		GameInstance* mpGameInstance;
+		IGameInstance* mpGameInstance;
 		IGameWindow* mpWindow;
 		IRenderDevice* mpDevice;
 	};

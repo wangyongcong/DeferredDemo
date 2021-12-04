@@ -4,7 +4,7 @@
 #include <filesystem>
 
 #include "GameApplication.h"
-#include "GameInstance.h"
+#include "IGameInstance.h"
 #include "LogMacros.h"
 #include "Utility.h"
 
@@ -67,22 +67,37 @@ namespace wyc
 		sModuleHandle = hModuleInstance;
 	}
 
-	void GameApplication::Run()
+	static int64_t gHighResTimerFrequency = 0;
+
+	void InitTime()
 	{
-		MSG msg = {0};
-		while (msg.message != WM_QUIT)
+		LARGE_INTEGER frequency;
+		if (QueryPerformanceFrequency(&frequency))
 		{
-			if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-			mpDevice->Render();
+			gHighResTimerFrequency = frequency.QuadPart;
 		}
-		mpDevice->Close();
+		else
+		{
+			gHighResTimerFrequency = 1000LL;
+		}
 	}
 
-	void GameApplication::Quit(int exitCode)
+	int64_t GetTime()
+	{
+		LARGE_INTEGER counter;
+		QueryPerformanceCounter(&counter);
+		return counter.QuadPart * (int64_t)1e6 / gHighResTimerFrequency;
+	}
+
+	float GetTimeSince(int64_t &start)
+	{
+		int64_t end = GetTime();
+		float delta = (float)(end - start) / (float)1e6;
+		start = end;
+		return delta;
+	}
+
+	void GameApplication::QuitGame(int exitCode)
 	{
 		PostQuitMessage(exitCode);
 	}
@@ -108,8 +123,6 @@ namespace wyc
 
 	GameApplication::~GameApplication()
 	{
-		GameInstance::DestroyGameInstance();
-
 		if (mpDevice)
 		{
 			mpDevice->Release();
@@ -130,6 +143,28 @@ namespace wyc
 		{
 			mpWindow->SetVisible(visible);
 		}
+	}
+
+	void GameApplication::StartGame(IGameInstance* pGame)
+	{
+		mpGameInstance = pGame;
+		InitTime();
+		mpGameInstance->Init();
+		int64_t lastTime = GetTime(), currentTime;
+		MSG msg = { 0 };
+		while (msg.message != WM_QUIT)
+		{
+			if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
+			float deltaTime = GetTimeSince(lastTime);
+			mpGameInstance->Tick(deltaTime);
+			mpDevice->Render();
+		}
+		mpDevice->Close();
+		mpGameInstance->Exit();
 	}
 
 	void GameApplication::StartLogger()

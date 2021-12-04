@@ -16,7 +16,7 @@ set(PUBLIC_SOURCE
 	# Game module
 	Game/Public/GameFramework.h
 	Game/Public/GameApplication.h
-	Game/Public/GameInstance.h
+	Game/Public/IGameInstance.h
 	Game/Public/IRenderDevice.h
 	Game/Public/IGameWindow.h
 	Game/Public/AssertionMacros.h
@@ -33,7 +33,6 @@ set(PRIVATE_SOURCE
 	Game/Private/GameApplication.cpp
 	Game/private/WindowsGameWindow.h
 	Game/Private/WindowsGameWindow.cpp
-	Game/Private/GameInstance.cpp
 	Game/Private/D3DHelper.h
 	Game/Private/D3DHelper.cpp
 	Game/Private/DeviceD3D12.h

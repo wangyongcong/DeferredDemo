@@ -2,9 +2,39 @@
 #include <Windows.h>
 #include <Shlwapi.h>
 #include <memory>
+#include "IGameInstance.h"
+#include "IRenderDevice.h"
 #include "GameApplication.h"
 
 using namespace wyc;
+
+class GameDeferred : public IGameInstance
+{
+public:
+	
+	void Init() override
+	{
+	}
+
+
+	void Exit() override
+	{
+	}
+
+
+	void Tick(float deltaTime) override
+	{
+	}
+
+
+	void Draw() override
+	{
+		GameApplication* pApplication = GameApplication::Get();
+		IRenderDevice* pRenderer = pApplication->GetDevice();
+		
+	}
+
+};
 
 int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
@@ -14,8 +44,8 @@ int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdL
 	}
 
 	auto Application = GameApplication::Get();
-	// @todo: exception handling
-	Application->Run();
+	GameDeferred TheGame;
+	Application->StartGame(&TheGame);
 
 	Application->DestroyApplication();
 

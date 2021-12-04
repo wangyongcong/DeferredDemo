@@ -250,8 +250,8 @@ static	const	char		*sourceFunc = "??";
 static		unsigned int	sourceLine = 0;
 static		sAllocUnit	**reservoirBuffer = NULL;
 static		unsigned int	reservoirBufferSize = 0;
-static const	char		*memoryLogFile = "Saved/Logs/memory.log";
-static const	char		*memoryLeakLogFile = "Saved/Logs/memleaks.log";
+static const	char		*memoryLogFile = "Saved/Logs/Memory.log";
+static const	char		*memoryLeakLogFile = "Saved/Logs/MemLeaks.log";
 static		void		doCleanupLogOnFirstRun();
 static char* LogToMemory(char* log, size_t logLength);
 static void FlushMemoryLog();
@@ -591,7 +591,6 @@ static	void	dumpLeakReport()
 	{        
 		std::ofstream fh;
 		fh.open(memoryLeakLogFile);
-		bool success = fh.is_open();
 
 		if(!fh)
 		{
@@ -634,11 +633,7 @@ static	void	dumpLeakReport()
 			}
 		}
 
-		if (success)
-		{
-			fh.close();
-		}
-
+		fh.close();
 		m_assert(stats.totalAllocUnitCount == 0 && "Memory leaks found");
 	}
 }
@@ -1515,16 +1510,12 @@ static void fsPrintf(std::ofstream* fileStream, const char* format, ...)
 void	mmgrDumpMemoryReport(const char *filename, const bool overwrite)
 {
 	{
-		//FileStream fh = {};
-		//bool success = fsOpenStreamFromPath(RD_LOG, filename, overwrite ? FM_WRITE : FM_APPEND, &fh);
-
 		std::ofstream fh;
 		fh.open(filename);
-		bool success = fh.is_open();
 
 		// If you hit this assert, then the memory report generator is unable to log information to a file (can't open the file for
 		// some reason.)
-		if (!success)
+		if (!fh)
 			return;
 
 		// Header
@@ -1578,7 +1569,6 @@ void	mmgrDumpMemoryReport(const char *filename, const bool overwrite)
 
 		dumpAllocations(&fh);
 
-        //fsCloseStream(&fh);
 		fh.close();
 	}
 }
@@ -1597,6 +1587,11 @@ char* LogToMemory(char* log, size_t logLength=0)
 	static char* logMemory = (char*)calloc(1, sizeof(char));
 	static size_t memoryLength = 1;
 
+	if(!log)
+	{
+		return logMemory;
+	}
+
 	if(logLength < 1)
 	{
 		logLength = strlen(log);
@@ -1612,7 +1607,14 @@ char* LogToMemory(char* log, size_t logLength=0)
 
 void FlushMemoryLog()
 {
-
+	char* allMemoryLog = LogToMemory(nullptr);
+	std::ofstream fh;
+	fh.open(memoryLogFile);
+	if (fh)
+	{
+		fh << allMemoryLog << std::endl;
+		fh.close();
+	}
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

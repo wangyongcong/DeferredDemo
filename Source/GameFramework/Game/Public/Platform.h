@@ -1,6 +1,6 @@
 #pragma once
 
-// Codes from EASTL library eaplatform.h
+// Codes from EASTL library (https://github.com/electronicarts/EASTL) eaplatform.h
 
 #if (defined(PLATFORM_WINDOWS) || (defined(_WIN32) || defined(__WIN32__) || defined(_WIN64))) && !defined(CS_UNDEFINED_STRING)
 #undef  PLATFORM_WINDOWS

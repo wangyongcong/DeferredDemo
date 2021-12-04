@@ -14,6 +14,7 @@
 #include "LogMacros.h"
 #include "WindowsGameWindow.h"
 #include "D3DHelper.h"
+#include "IMemory.h"
 
 
 namespace wyc
@@ -107,7 +108,7 @@ namespace wyc
 		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(mpSwapChainHeap->GetCPUDescriptorHandleForHeapStart());
 		mDescriptorSizeRTV = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-		mppBackBuffers = new ID3D12Resource*[mMaxFrameLatency];
+		mppBackBuffers = (ID3D12Resource**)tf_calloc(mMaxFrameLatency, sizeof(ID3D12Resource*));
 		for (int i = 0; i < mMaxFrameLatency; ++i)
 		{
 			ID3D12Resource* backBuffer = nullptr;
@@ -135,7 +136,7 @@ namespace wyc
 			{
 				mppCommandAllocators[i]->Release();
 			}
-			delete[] mppCommandAllocators;
+			tf_free(mppCommandAllocators);
 			mppCommandAllocators = nullptr;
 		}
 		if (mpCommandFences)
@@ -144,7 +145,7 @@ namespace wyc
 			{
 				ReleaseFence(mpCommandFences[i]);
 			}
-			delete[] mpCommandFences;
+			tf_free(mpCommandFences);
 			mpCommandFences = nullptr;
 		}
 		ReleaseFence(mQueueFence);
@@ -156,7 +157,7 @@ namespace wyc
 				ID3D12Resource* buff = mppBackBuffers[i];
 				SAFE_RELEASE(buff);
 			}
-			delete[] mppBackBuffers;
+			tf_free(mppBackBuffers);
 			mppBackBuffers = nullptr;
 		}
 		SAFE_RELEASE(mpSwapChain);
@@ -417,8 +418,8 @@ namespace wyc
 
 	bool RenderDeviceD3D12::CreateCommandList()
 	{
-		mppCommandAllocators = new ID3D12CommandAllocator*[mMaxFrameLatency];
-		mpCommandFences = new DeviceFence[mMaxFrameLatency];
+		mppCommandAllocators = (ID3D12CommandAllocator**)tf_calloc(mMaxFrameLatency, sizeof(ID3D12CommandAllocator*));
+		mpCommandFences = (DeviceFence*)tf_calloc_memalign(mMaxFrameLatency, alignof(DeviceFence), sizeof(DeviceFence));
 		for(uint8_t i = 0; i < mMaxFrameLatency; ++i)
 		{
 			EnsureHResult(mpDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mppCommandAllocators[i])));
