@@ -5,6 +5,7 @@
 #include "IGameInstance.h"
 #include "IRenderer.h"
 #include "GameApplication.h"
+#include "rtm/types.h"
 
 using namespace wyc;
 using namespace rtm;
