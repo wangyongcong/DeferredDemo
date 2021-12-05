@@ -17,7 +17,7 @@ set(PUBLIC_SOURCE
 	Game/Public/GameFramework.h
 	Game/Public/GameApplication.h
 	Game/Public/IGameInstance.h
-	Game/Public/IRenderDevice.h
+	Game/Public/IRenderer.h
 	Game/Public/IGameWindow.h
 	Game/Public/AssertionMacros.h
 	Game/Public/LogMacros.h
@@ -35,8 +35,8 @@ set(PRIVATE_SOURCE
 	Game/Private/WindowsGameWindow.cpp
 	Game/Private/D3DHelper.h
 	Game/Private/D3DHelper.cpp
-	Game/Private/DeviceD3D12.h
-	Game/Private/DeviceD3D12.cpp
+	Game/Private/RendererD3D12.h
+	Game/Private/RendererD3D12.cpp
 	Game/Private/Utility.cpp
 	Game/Private/MemoryTracking.cpp
 )
@@ -55,12 +55,13 @@ set(STB_SOURCE
 # 设置第三方库依赖
 # ---------------
 
-# d3d12 helper library
+# D3D12 helper library
 set(D3D12LIB_PUBLIC D3DLib)
 set(D3D12LIB_SOURCE
 	D3DLib/d3dx12.h
 )
 
+# D3D12 memory allocation lib
 set(D3D12_MEMORY_ALLOCATOR_PUBLIC ThirdParty/D3D12MemoryAllocator)
 set(D3D12_MEMORY_ALLOCATOR_SOURCE
 	ThirdParty/D3D12MemoryAllocator/D3D12MemAlloc.h
@@ -75,6 +76,32 @@ set(MEMORY_MANAGER_SOURCE
 	ThirdParty/MemoryManager/nommgr.h
 )
 
+# real time math lib
+set(RTM_SOURCE
+	ThirdParty/rtm/macros.h
+	ThirdParty/rtm/mask4d.h
+	ThirdParty/rtm/mask4f.h
+	ThirdParty/rtm/mask4i.h
+	ThirdParty/rtm/mask4q.h
+	ThirdParty/rtm/math.h
+	ThirdParty/rtm/matrix3x3d.h
+	ThirdParty/rtm/matrix3x3f.h
+	ThirdParty/rtm/matrix3x4d.h
+	ThirdParty/rtm/matrix3x4f.h
+	ThirdParty/rtm/matrix4x4d.h
+	ThirdParty/rtm/matrix4x4f.h
+	ThirdParty/rtm/quatd.h
+	ThirdParty/rtm/quatf.h
+	ThirdParty/rtm/qvvd.h
+	ThirdParty/rtm/qvvf.h
+	ThirdParty/rtm/scalard.h
+	ThirdParty/rtm/scalarf.h
+	ThirdParty/rtm/type_traits.h
+	ThirdParty/rtm/types.h
+	ThirdParty/rtm/vector4d.h
+	ThirdParty/rtm/vector4f.h
+)
+
 set(THIRD_PARTH_PUBLIC
 	ThirdParty
 	${D3D12LIB_PUBLIC}
@@ -85,6 +112,7 @@ set(THIRD_PARTY_SOURCE
 	${D3D12LIB_SOURCE}
 	${D3D12_MEMORY_ALLOCATOR_SOURCE}
 	${MEMORY_MANAGER_SOURCE}
+	${RTM_SOURCE}
 )
 
 source_group("ThirdParty/D3D12Lib" FILES ${D3D12LIB_SOURCE})
@@ -94,6 +122,7 @@ source_group("Game/Public" FILES ${PUBLIC_SOURCE})
 source_group("Game/Private" FILES ${PRIVATE_SOURCE})
 source_group("Stb" FILES ${STB_SOURCE})
 source_group("Natvis" FILES ${NATVIS})
+source_group("rtm" FILES ${RTM_SOURCE})
 
 # --------
 # 资源文件

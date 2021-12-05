@@ -3,7 +3,7 @@
 #include <string>
 #include "GameFramework.h"
 #include "IGameWindow.h"
-#include "IRenderDevice.h"
+#include "IRenderer.h"
 
 namespace wyc
 {
@@ -31,12 +31,11 @@ namespace wyc
 		virtual HINSTANCE GetApplicationHandle() const;
 		virtual HINSTANCE GetApplicationModule() const;
 
-		inline IRenderDevice* GetDevice() {
-			return mpDevice;
-		}
-
 		inline IGameWindow* GetWindow() {
 			return mpWindow;
+		}
+		inline IRenderer* GetRenderer() {
+			return mpRenderer;
 		}
 
 	protected:
@@ -47,7 +46,7 @@ namespace wyc
 		std::wstring mAppName;
 		IGameInstance* mpGameInstance;
 		IGameWindow* mpWindow;
-		IRenderDevice* mpDevice;
+		IRenderer* mpRenderer;
 	};
 
 } // namespace wyc

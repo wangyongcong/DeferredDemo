@@ -10,7 +10,7 @@
 
 #if defined(_WIN32) || defined(_WIN64)
 #include "WindowsGameWindow.h"
-#include "DeviceD3D12.h"
+#include "RendererD3D12.h"
 #endif
 
 #include "IMemory.h"
@@ -115,7 +115,7 @@ namespace wyc
 	GameApplication::GameApplication(const wchar_t* appName)
 		: mAppName(appName)
 		, mpWindow(nullptr)
-		, mpDevice(nullptr)
+		, mpRenderer(nullptr)
 		, mpGameInstance(nullptr)
 	{
 
@@ -123,11 +123,11 @@ namespace wyc
 
 	GameApplication::~GameApplication()
 	{
-		if (mpDevice)
+		if (mpRenderer)
 		{
-			mpDevice->Release();
-			tf_delete(mpDevice);
-			mpDevice = nullptr;
+			mpRenderer->Release();
+			tf_delete(mpRenderer);
+			mpRenderer = nullptr;
 		}
 		if(mpWindow)
 		{
@@ -161,9 +161,11 @@ namespace wyc
 			}
 			float deltaTime = GetTimeSince(lastTime);
 			mpGameInstance->Tick(deltaTime);
-			mpDevice->Render();
+			mpRenderer->BeginFrame();
+			mpGameInstance->Draw(mpRenderer);
+			mpRenderer->Present();
 		}
-		mpDevice->Close();
+		mpRenderer->Close();
 		mpGameInstance->Exit();
 	}
 
@@ -191,7 +193,7 @@ namespace wyc
 
 	bool GameApplication::CreateDevice()
 	{
-		if (mpDevice)
+		if (mpRenderer)
 		{
 			return true;
 		}
@@ -199,8 +201,8 @@ namespace wyc
 		{
 			return false;
 		}
-		mpDevice = tf_new(RenderDeviceD3D12);
-		if (!mpDevice->Initialize(mpWindow))
+		mpRenderer = tf_new(RendererD3D12);
+		if (!mpRenderer->Initialize(mpWindow))
 		{
 			return false;
 		}

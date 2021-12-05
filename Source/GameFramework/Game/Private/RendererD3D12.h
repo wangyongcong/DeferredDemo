@@ -1,7 +1,7 @@
 #pragma once
 
 #include <d3d12.h>
-#include "IRenderDevice.h"
+#include "IRenderer.h"
 
 
 namespace wyc
@@ -40,20 +40,20 @@ namespace wyc
 		DEVICE_RELEASED,
 	};
 
-	class RenderDeviceD3D12 : public IRenderDevice
+	class RendererD3D12 : public IRenderer
 	{
 	public:
-		RenderDeviceD3D12();
-		virtual ~RenderDeviceD3D12();
+		RendererD3D12();
+		virtual ~RendererD3D12();
 
-		// Implement IRenderDevice
-		virtual bool Initialize(IGameWindow* gameWindow) override;
-		virtual void Release() override;
-		virtual void Render() override;
-		virtual bool CreateSwapChain(const SSwapChainDesc& Desc) override;
-		virtual void Present() override;
-		virtual void Close() override;
-		// IRenderDevice
+		// Implement IRenderer
+		bool Initialize(IGameWindow* gameWindow) override;
+		void Release() override;
+		bool CreateSwapChain(const SwapChainDesc& Desc) override;
+		void BeginFrame() override;
+		void Present() override;
+		void Close() override;
+		// IRenderer
 
 	protected:
 		void EnableDebugLayer();

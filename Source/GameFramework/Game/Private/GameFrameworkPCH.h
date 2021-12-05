@@ -39,3 +39,14 @@ using namespace Microsoft::WRL;
 #include <chrono>
 #include <map>
 #include <memory>
+
+// rtm
+#include "rtm/constants.h"
+#include "rtm/scalarf.h"
+#include "rtm/vector4f.h"
+#include "rtm/matrix3x3f.h"
+#include "rtm/matrix3x4f.h"
+#include "rtm/matrix4x4f.h"
+#include "rtm/quatf.h"
+#include "rtm/qvvf.h"
+#include "rtm/mask4f.h"

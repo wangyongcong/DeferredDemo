@@ -1,5 +1,5 @@
 #include "GameFrameworkPCH.h"
-#include "DeviceD3D12.h"
+#include "RendererD3D12.h"
 #include <chrono>
 
 #include <d3d12.h>
@@ -19,7 +19,7 @@
 
 namespace wyc
 {
-	RenderDeviceD3D12::RenderDeviceD3D12()
+	RendererD3D12::RendererD3D12()
 		: mDeviceState(ERenderDeviceState::DEVICE_EMPTY)
 		, mMaxFrameLatency(3)
 		, mFrameCount(0)
@@ -40,12 +40,12 @@ namespace wyc
 	{
 	}
 
-	RenderDeviceD3D12::~RenderDeviceD3D12()
+	RendererD3D12::~RendererD3D12()
 	{
 		Release();
 	}
 
-	bool RenderDeviceD3D12::Initialize(IGameWindow* gameWindow)
+	bool RendererD3D12::Initialize(IGameWindow* gameWindow)
 	{
 		if (mDeviceState >= ERenderDeviceState::DEVICE_INITIALIZED)
 		{
@@ -122,7 +122,7 @@ namespace wyc
 		return true;
 	}
 
-	void RenderDeviceD3D12::Release()
+	void RendererD3D12::Release()
 	{
 		if(mDeviceState >= ERenderDeviceState::DEVICE_RELEASED || mDeviceState < ERenderDeviceState::DEVICE_INITIALIZED)
 		{
@@ -182,40 +182,7 @@ namespace wyc
 		ReportLiveObjects(L"Check leaks on shutdown");
 	}
 
-	void RenderDeviceD3D12::Render()
-	{
-		mFrameIndex = mFrameCount % mMaxFrameLatency;
-		ID3D12CommandAllocator* pAllocator= mppCommandAllocators[mFrameIndex];
-		DeviceFence& fence = mpCommandFences[mFrameIndex];
-		WaitForFence(fence);
-
-		pAllocator->Reset();
-		mpCommandList->Reset(pAllocator, nullptr);
-
-		auto backBuffer = mppBackBuffers[mBackBufferIndex];
-		{
-			CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-				backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			mpCommandList->ResourceBarrier(1, &barrier);
-			float clearColor[] = {0.0f, 0.0f, 0.0f, 1.0f};
-			CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mpSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mBackBufferIndex, mDescriptorSizeRTV);
-			mpCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
-		}
-
-		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-		mpCommandList->ResourceBarrier(1, &barrier);
-		mpCommandList->Close();
-
-		ID3D12CommandList* const commandLists[] = { mpCommandList };
-		mpCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
-		EnsureHResult(mpCommandQueue->Signal(fence.mpDxFence, ++fence.mFenceValue));
-
-		Present();
-		mFrameCount += 1;
-	}
-
-	void RenderDeviceD3D12::Close()
+	void RendererD3D12::Close()
 	{
 		if(mDeviceState == ERenderDeviceState::DEVICE_INITIALIZED)
 		{
@@ -225,18 +192,50 @@ namespace wyc
 		}
 	}
 
-	bool RenderDeviceD3D12::CreateSwapChain(const SSwapChainDesc& Desc)
+	bool RendererD3D12::CreateSwapChain(const SwapChainDesc& Desc)
 	{
 		return true;
 	}
 
-	void RenderDeviceD3D12::Present()
+	void RendererD3D12::BeginFrame()
 	{
-		EnsureHResult(mpSwapChain->Present(1, 0));
-		mBackBufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
+		mFrameIndex = mFrameCount % mMaxFrameLatency;
+		ID3D12CommandAllocator* pAllocator = mppCommandAllocators[mFrameIndex];
+		DeviceFence& fence = mpCommandFences[mFrameIndex];
+		WaitForFence(fence);
+
+		pAllocator->Reset();
+		mpCommandList->Reset(pAllocator, nullptr);
+
+		auto backBuffer = mppBackBuffers[mBackBufferIndex];
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		mpCommandList->ResourceBarrier(1, &barrier);
+		
+		float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mpSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mBackBufferIndex, mDescriptorSizeRTV);
+		mpCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
 	}
 
-	bool RenderDeviceD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height)
+	void RendererD3D12::Present()
+	{
+		auto backBuffer = mppBackBuffers[mBackBufferIndex];
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+			backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+		mpCommandList->ResourceBarrier(1, &barrier);
+		mpCommandList->Close();
+
+		ID3D12CommandList* const commandLists[] = { mpCommandList };
+		mpCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+		DeviceFence& fence = mpCommandFences[mFrameIndex];
+		EnsureHResult(mpCommandQueue->Signal(fence.mpDxFence, ++fence.mFenceValue));
+
+		EnsureHResult(mpSwapChain->Present(1, 0));
+		mBackBufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
+		mFrameCount += 1;
+	}
+
+	bool RendererD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height)
 	{
 		if(mpDevice)
 		{
@@ -345,7 +344,7 @@ namespace wyc
 		return true;
 	}
 
-	bool RenderDeviceD3D12::CreateCommandQueue()
+	bool RendererD3D12::CreateCommandQueue()
 	{
 		Ensure(mpDevice);
 		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
@@ -364,7 +363,7 @@ namespace wyc
 		return true;
 	}
 
-	bool RenderDeviceD3D12::CreateFence(DeviceFence& outFence)
+	bool RendererD3D12::CreateFence(DeviceFence& outFence)
 	{
 		Ensure(mpDevice);
 		ID3D12Fence* pFence;
@@ -384,13 +383,13 @@ namespace wyc
 		return true;
 	}
 
-	void RenderDeviceD3D12::ReleaseFence(DeviceFence& fence)
+	void RendererD3D12::ReleaseFence(DeviceFence& fence)
 	{
 		SAFE_RELEASE(fence.mpDxFence);
 		SAFE_CLOSE_HANDLE(fence.mhWaitEvent);
 	}
 
-	void RenderDeviceD3D12::WaitForFence(DeviceFence& fence)
+	void RendererD3D12::WaitForFence(DeviceFence& fence)
 	{
 		if(fence.mpDxFence->GetCompletedValue() < fence.mFenceValue)
 		{
@@ -399,7 +398,7 @@ namespace wyc
 		}
 	}
 
-	void RenderDeviceD3D12::ReportLiveObjects(const wchar_t* prompt)
+	void RendererD3D12::ReportLiveObjects(const wchar_t* prompt)
 	{
 #ifdef _DEBUG
 		if(prompt)
@@ -416,7 +415,7 @@ namespace wyc
 #endif
 	}
 
-	bool RenderDeviceD3D12::CreateCommandList()
+	bool RendererD3D12::CreateCommandList()
 	{
 		mppCommandAllocators = (ID3D12CommandAllocator**)tf_calloc(mMaxFrameLatency, sizeof(ID3D12CommandAllocator*));
 		mpCommandFences = (DeviceFence*)tf_calloc_memalign(mMaxFrameLatency, alignof(DeviceFence), sizeof(DeviceFence));
@@ -430,7 +429,7 @@ namespace wyc
 		return true;
 	}
 
-	void RenderDeviceD3D12::EnableDebugLayer()
+	void RendererD3D12::EnableDebugLayer()
 	{
 		if(SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&mpDebug))))
 		{
