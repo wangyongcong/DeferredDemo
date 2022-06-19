@@ -6,6 +6,8 @@
 #undef  PLATFORM_WINDOWS
 #define PLATFORM_WINDOWS 1
 #define PLATFORM_NAME "Windows"
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
 #ifdef _WIN64 // VC++ defines both _WIN32 and _WIN64 when compiling for Win64.
 	#define PLATFORM_WIN64 1
 #else

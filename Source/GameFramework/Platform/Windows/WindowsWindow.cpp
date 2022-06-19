@@ -1,7 +1,7 @@
 #include "GameFrameworkPCH.h"
 #include "resource.h"
-#include "WindowsGameWindow.h"
-#include "GameApplication.h"
+#include "WindowsPlatform.h"
+#include "WindowsWindow.h"
 
 namespace wyc
 {
@@ -27,13 +27,9 @@ namespace wyc
 		return 0;
 	}
 
-	bool WindowsGameWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
+	bool WindowsWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
 	{
 		const wchar_t* WindowClassName = L"D3DGameWindow";
-
-		auto pAppInstance = GameApplication::Get();
-		auto appHandle = pAppInstance->GetApplicationHandle();
-		auto appModule = pAppInstance->GetApplicationModule();
 
 		WNDCLASSEX windowClass;
 		windowClass.cbSize = sizeof(WNDCLASSEX);
@@ -41,14 +37,15 @@ namespace wyc
 		windowClass.lpfnWndProc = &WindowProcess;
 		windowClass.cbClsExtra = 0;
 		windowClass.cbWndExtra = 0;
-		windowClass.hInstance = appHandle;
+		windowClass.hInstance = gAppInstance;
 
-		windowClass.hIcon = LoadIcon(appModule, MAKEINTRESOURCE(IDI_APP_ICON));
+		HINSTANCE moduleInstance = GetModuleInstance();
+		windowClass.hIcon = LoadIcon(moduleInstance, MAKEINTRESOURCE(IDI_APP_ICON));
 		windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
 		windowClass.hbrBackground = HBRUSH(COLOR_WINDOW);
 		windowClass.lpszMenuName = NULL;
 		windowClass.lpszClassName = WindowClassName;
-		windowClass.hIconSm = LoadIcon(appModule, MAKEINTRESOURCE(IDI_APP_ICON));
+		windowClass.hIconSm = LoadIcon(moduleInstance, MAKEINTRESOURCE(IDI_APP_ICON));
 
 		HRESULT hr = RegisterClassEx(&windowClass);
 		if (!SUCCEEDED(hr))
@@ -70,7 +67,7 @@ namespace wyc
 		int windowY = std::max<int>(0, (screenHeight - windowHeight) / 2);
 
 		HWND hMainWnd = CreateWindowW(WindowClassName, title, style,
-			windowX, windowY, windowWidth, windowHeight, NULL, NULL, appHandle, NULL);
+			windowX, windowY, windowWidth, windowHeight, NULL, NULL, gAppInstance, NULL);
 		if (!hMainWnd)
 		{
 			// fail to create windows
@@ -83,7 +80,7 @@ namespace wyc
 		return true;
 	}
 
-	void WindowsGameWindow::Destroy()
+	void WindowsWindow::Destroy()
 	{
 		if(mWindowHandle != NULL)
 		{
@@ -92,7 +89,7 @@ namespace wyc
 		}
 	}
 
-	void WindowsGameWindow::SetVisible(bool bIsVisible)
+	void WindowsWindow::SetVisible(bool bIsVisible)
 	{
 		if(!IS_WINDOW_VALID(mWindowHandle))
 		{
@@ -108,18 +105,18 @@ namespace wyc
 		}
 	}
 
-	bool WindowsGameWindow::IsWindowValid() const
+	bool WindowsWindow::IsWindowValid() const
 	{
 		return IS_WINDOW_VALID(mWindowHandle);
 	}
 
-	void WindowsGameWindow::GetWindowSize(unsigned& width, unsigned& height) const
+	void WindowsWindow::GetWindowSize(unsigned& width, unsigned& height) const
 	{
 		width = mWindowWidth;
 		height = mWindowHeight;
 	}
 
-	WindowsGameWindow::WindowsGameWindow()
+	WindowsWindow::WindowsWindow()
 		: mWindowHandle(NULL)
 		, mWindowWidth(0)
 		, mWindowHeight(0)
@@ -127,7 +124,7 @@ namespace wyc
 
 	}
 
-	WindowsGameWindow::~WindowsGameWindow()
+	WindowsWindow::~WindowsWindow()
 	{
 		Destroy();
 	}

@@ -12,7 +12,7 @@
 
 #include "AssertionMacros.h"
 #include "LogMacros.h"
-#include "WindowsGameWindow.h"
+#include "WindowsWindow.h"
 #include "D3DHelper.h"
 #include "IMemory.h"
 
@@ -25,11 +25,13 @@ namespace wyc
 		, mFrameCount(0)
 		, mFrameIndex(0)
 		, mBackBufferIndex(0)
+		, mDescriptorSizeRTV(0)
 		// D3D12 device data
 		, mpDebug(nullptr)
 		, mpDXGIFactory(nullptr)
 		, mpAdapter(nullptr)
 		, mpDevice(nullptr)
+		, mpDeviceInfoQueue(nullptr)
 		, mpCommandQueue(nullptr)
 		, mpCommandList(nullptr)
 		, mppCommandAllocators(nullptr)
@@ -52,7 +54,7 @@ namespace wyc
 			return true;
 		}
 		unsigned width, height;
-		WindowsGameWindow* win = dynamic_cast<WindowsGameWindow*>(gameWindow);
+		WindowsWindow* win = dynamic_cast<WindowsWindow*>(gameWindow);
 		HWND hWnd = win->GetWindowHandle();
 		gameWindow->GetWindowSize(width, height);
 		if (!CreateDevice(hWnd, width, height))
@@ -192,7 +194,7 @@ namespace wyc
 		}
 	}
 
-	bool RendererD3D12::CreateSwapChain(const SwapChainDesc& Desc)
+	bool RendererD3D12::CreateSwapChain(const SwapChainDesc& desc)
 	{
 		return true;
 	}

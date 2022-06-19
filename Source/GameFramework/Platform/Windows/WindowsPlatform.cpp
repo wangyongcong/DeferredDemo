@@ -1,7 +1,4 @@
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#include "GameApplication.h"
-
+#include "WindowsPlatform.h"
 
 BOOL WINAPI DllMain(
 	HINSTANCE hinstDLL,	// handle to DLL module
@@ -14,7 +11,7 @@ BOOL WINAPI DllMain(
 	case DLL_PROCESS_ATTACH:
 		// Initialize once for each new process.
 		// Return FALSE to fail DLL load.
-		wyc::GameApplication::SetModuleHandle(hinstDLL);
+		wyc::gModuleInstance = hinstDLL;
 		break;
 
 	case DLL_THREAD_ATTACH:

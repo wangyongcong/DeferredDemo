@@ -14,7 +14,7 @@
 #undef max
 #endif
 
-// In order to define a function called CreateWindow, the Windows macro needs to
+// In order to define a function called CreateGameWindow, the Windows macro needs to
 // be undefined.
 #if defined(CreateWindow)
 #undef CreateWindow
@@ -34,6 +34,7 @@ using namespace Microsoft::WRL;
 #include <d3dx12.h>
 
 // STL Headers
+#include <string>
 #include <algorithm>
 #include <cassert>
 #include <chrono>

@@ -8,9 +8,9 @@
 #include "LogMacros.h"
 #include "Utility.h"
 
-#if defined(_WIN32) || defined(_WIN64)
-#include "WindowsGameWindow.h"
-#include "RendererD3D12.h"
+#ifdef PLATFORM_WINDOWS
+#include "WindowsApplication.h"
+using ApplicationClass = wyc::WindowsApplication;
 #endif
 
 #include "IMemory.h"
@@ -20,51 +20,44 @@ extern void MemAllocExit();
 
 namespace wyc
 {
-	HINSTANCE GameApplication::sModuleHandle = NULL;
-	HINSTANCE GameApplication::sApplicationHandle = NULL;
-	GameApplication* GameApplication::sApplicationPtr;
+	GAME_FRAMEWORK_API GameApplication* gApplication = nullptr;
 
-	bool GameApplication::CreateApplication(HINSTANCE hInstance, const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight)
+	bool GameApplication::CreateApplication(const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight)
 	{
 		MemAllocInit();
-		sApplicationHandle = hInstance;
-		sApplicationPtr = tf_new(GameApplication, appName);
-		sApplicationPtr->StartLogger();
-		if (!sApplicationPtr->CreateGameWindow(windowWidth, windowHeight))
+		gApplication = tf_new(ApplicationClass, appName);
+		gApplication->StartLogger();
+		IGameWindow* window = gApplication->CreateGameWindow(windowWidth, windowHeight);
+		if (!window)
 		{
 			LogError("Fail to create game window");
+			tf_delete(gApplication);
 			return false;
 		}
-		if (!sApplicationPtr->CreateDevice())
+		gApplication->mpWindow = window;
+		IRenderer* renderer = gApplication->CreateRenderer();
+		if (!renderer)
 		{
 			LogError("Fail to create device");
+			tf_delete(gApplication);
 			return false;
 		}
-		sApplicationPtr->ShowWindow(true);
+		gApplication->mpRenderer = renderer;
+		window->SetVisible(true);
 		Log("Application started");
 		return true;
 	}
 
 	void GameApplication::DestroyApplication()
 	{
-		if(sApplicationPtr)
+		if(gApplication)
 		{
-			tf_delete(sApplicationPtr);
-			sApplicationPtr = nullptr;
+			tf_delete(gApplication);
+			gApplication = nullptr;
 			Log("Application exited");
 		}
 		close_logger();
 		MemAllocExit();
-	}
-
-	GameApplication* GameApplication::Get()
-	{
-		return sApplicationPtr;
-	}
-
-	void GameApplication::SetModuleHandle(HINSTANCE hModuleInstance)
-	{
-		sModuleHandle = hModuleInstance;
 	}
 
 	static int64_t gHighResTimerFrequency = 0;
@@ -102,21 +95,11 @@ namespace wyc
 		PostQuitMessage(exitCode);
 	}
 
-	HINSTANCE GameApplication::GetApplicationHandle() const
-	{
-		return sApplicationHandle;
-	}
-
-	HINSTANCE GameApplication::GetApplicationModule() const
-	{
-		return sModuleHandle != NULL ? sModuleHandle : sApplicationHandle;
-	}
-
 	GameApplication::GameApplication(const wchar_t* appName)
 		: mAppName(appName)
+		, mpGameInstance(nullptr)
 		, mpWindow(nullptr)
 		, mpRenderer(nullptr)
-		, mpGameInstance(nullptr)
 	{
 
 	}
@@ -181,34 +164,14 @@ namespace wyc
 		start_file_logger(ansi.c_str());
 	}
 
-	bool GameApplication::CreateGameWindow(uint32_t windowWidth, uint32_t windowHeight)
+	IGameWindow* GameApplication::CreateGameWindow(uint32_t windowWidth, uint32_t windowHeight)
 	{
-		if (!mpWindow)
-		{
-			mpWindow = tf_new(WindowsGameWindow);
-			return mpWindow->CreateGameWindow(mAppName.c_str(), windowWidth, windowHeight);
-		}
-		return true;
+		return nullptr;
 	}
 
-	bool GameApplication::CreateDevice()
+	IRenderer* GameApplication::CreateRenderer()
 	{
-		if (mpRenderer)
-		{
-			return true;
-		}
-		if (!mpWindow)
-		{
-			return false;
-		}
-		mpRenderer = tf_new(RendererD3D12);
-		if (!mpRenderer->Initialize(mpWindow))
-		{
-			return false;
-		}
-
-		return true;
+		return nullptr;
 	}
 
 } // namespace wyc
-

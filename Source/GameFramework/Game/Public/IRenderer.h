@@ -16,7 +16,7 @@ namespace wyc
 		virtual bool Initialize(IGameWindow* gameWindow) = 0;
 		virtual void Release() = 0;
 		virtual void BeginFrame() = 0;
-		virtual bool CreateSwapChain(const SwapChainDesc &Desc) = 0;
+		virtual bool CreateSwapChain(const SwapChainDesc &desc) = 0;
 		virtual void Present() = 0;
 		virtual void Close() = 0;
 	};

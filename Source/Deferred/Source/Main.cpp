@@ -1,10 +1,5 @@
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#include <Shlwapi.h>
-#include <memory>
-#include "IGameInstance.h"
-#include "IRenderer.h"
 #include "GameApplication.h"
+#include "IGameInstance.h"
 #include "rtm/types.h"
 
 using namespace wyc;
@@ -41,7 +36,6 @@ public:
 	
 	void Init() override
 	{
-		
 	}
 
 
@@ -61,18 +55,4 @@ public:
 
 };
 
-int CALLBACK wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
-{
-	if(!GameApplication::CreateApplication(hInstance, L"GameDeferred", 1290, 720))
-	{
-		return 1;
-	}
-
-	auto Application = GameApplication::Get();
-	GameDeferred TheGame;
-	Application->StartGame(&TheGame);
-
-	Application->DestroyApplication();
-
-	return 0;
-}
+APPLICATION_MAIN(GameDeferred)
