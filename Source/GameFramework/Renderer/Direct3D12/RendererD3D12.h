@@ -20,16 +20,11 @@ namespace wyc
 		uint64_t mPadA = 0;
 	};
 
-	struct GPUInfo
+	struct D3D12GpuInfo : GpuInfo
 	{
-		D3D_FEATURE_LEVEL featureLevel = (D3D_FEATURE_LEVEL)0;
+		D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL(0);
 		D3D12_FEATURE_DATA_D3D12_OPTIONS featureData;
 		D3D12_FEATURE_DATA_D3D12_OPTIONS1 featureData1;
-		size_t DedicatedVideoMemory;
-		uint32_t VendorId;
-		uint32_t DeviceId;
-		uint32_t Revision;
-		std::wstring Name;
 	};
 
 	enum class ERenderDeviceState : uint8_t
@@ -44,15 +39,16 @@ namespace wyc
 	{
 	public:
 		RendererD3D12();
-		virtual ~RendererD3D12();
+		~RendererD3D12() override;
 
 		// Implement IRenderer
 		bool Initialize(IGameWindow* gameWindow) override;
 		void Release() override;
-		bool CreateSwapChain(const SwapChainDesc& Desc) override;
+		bool CreateSwapChain(const SwapChainDesc& desc) override;
 		void BeginFrame() override;
 		void Present() override;
 		void Close() override;
+		const GpuInfo& GetGpuInfo(int index) override;
 		// IRenderer
 
 	protected:
@@ -64,7 +60,8 @@ namespace wyc
 		void ReleaseFence(DeviceFence& pFence);
 		void WaitForFence(DeviceFence& pFence);
 		void ReportLiveObjects(const wchar_t* prompt=nullptr);
-
+		
+	protected:
 		ERenderDeviceState mDeviceState;
 		uint8_t mMaxFrameLatency;
 		uint64_t mFrameCount;
@@ -88,7 +85,7 @@ namespace wyc
 		ID3D12DescriptorHeap* mpSwapChainHeap;
 		ID3D12Resource** mppBackBuffers;
 
-		GPUInfo mGpuInfo;
+		D3D12GpuInfo mGpuInfo;
 	};
 
 } // namespace wyc

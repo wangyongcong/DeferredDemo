@@ -14,7 +14,7 @@
 #undef max
 #endif
 
-// In order to define a function called CreateGameWindow, the Windows macro needs to
+// In order to define a function called Create, the Windows macro needs to
 // be undefined.
 #if defined(CreateWindow)
 #undef CreateWindow

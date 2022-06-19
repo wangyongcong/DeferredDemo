@@ -4,16 +4,22 @@
 #include <filesystem>
 
 #include "GameApplication.h"
+#include "IMemory.h"
 #include "IGameInstance.h"
 #include "LogMacros.h"
 #include "Utility.h"
 
 #ifdef PLATFORM_WINDOWS
 #include "WindowsApplication.h"
+#include "WindowsWindow.h"
 using ApplicationClass = wyc::WindowsApplication;
+using GameWindowClass = wyc::WindowsWindow;
 #endif
 
-#include "IMemory.h"
+#ifdef RENDERER_DIRECT3D12
+#include "RendererD3D12.h"
+using RenderClass = wyc::RendererD3D12;
+#endif
 
 extern bool MemAllocInit();
 extern void MemAllocExit();
@@ -27,23 +33,11 @@ namespace wyc
 		MemAllocInit();
 		gApplication = tf_new(ApplicationClass, appName);
 		gApplication->StartLogger();
-		IGameWindow* window = gApplication->CreateGameWindow(windowWidth, windowHeight);
-		if (!window)
+		if(!gApplication->Initialize(appName, windowWidth, windowHeight))
 		{
-			LogError("Fail to create game window");
 			tf_delete(gApplication);
 			return false;
 		}
-		gApplication->mpWindow = window;
-		IRenderer* renderer = gApplication->CreateRenderer();
-		if (!renderer)
-		{
-			LogError("Fail to create device");
-			tf_delete(gApplication);
-			return false;
-		}
-		gApplication->mpRenderer = renderer;
-		window->SetVisible(true);
 		Log("Application started");
 		return true;
 	}
@@ -152,6 +146,23 @@ namespace wyc
 		mpGameInstance->Exit();
 	}
 
+	bool GameApplication::Initialize(const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight)
+	{
+		mpWindow = tf_new(GameWindowClass);
+		if(!mpWindow->Create(appName, windowWidth, windowHeight))
+		{
+			return false;
+		}
+		mpRenderer = tf_new(RenderClass);
+		if(!mpRenderer->Initialize(mpWindow))
+		{
+			LogError("Fail to initialize renderer");
+			return false;
+		}
+		mpWindow->SetVisible(true);
+		return true;
+	}
+
 	void GameApplication::StartLogger()
 	{
 		auto path = std::filesystem::current_path();
@@ -162,16 +173,6 @@ namespace wyc
 		path /= logName.c_str();
 		std::string ansi = path.generic_string();
 		start_file_logger(ansi.c_str());
-	}
-
-	IGameWindow* GameApplication::CreateGameWindow(uint32_t windowWidth, uint32_t windowHeight)
-	{
-		return nullptr;
-	}
-
-	IRenderer* GameApplication::CreateRenderer()
-	{
-		return nullptr;
 	}
 
 } // namespace wyc

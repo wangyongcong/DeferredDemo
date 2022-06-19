@@ -27,9 +27,9 @@ namespace wyc
 		return 0;
 	}
 
-	bool WindowsWindow::CreateGameWindow(const wchar_t* title, uint32_t width, uint32_t height)
+	bool WindowsWindow::Create(const wchar_t* title, uint32_t width, uint32_t height)
 	{
-		const wchar_t* WindowClassName = L"D3DGameWindow";
+		const wchar_t* WindowClassName = L"GameWindow";
 
 		WNDCLASSEX windowClass;
 		windowClass.cbSize = sizeof(WNDCLASSEX);

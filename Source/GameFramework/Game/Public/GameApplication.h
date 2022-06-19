@@ -21,23 +21,22 @@ namespace wyc
 		GameApplication(const GameApplication&) = delete;
 		GameApplication& operator = (const GameApplication&) = delete;
 
-		virtual void ShowWindow(bool visible);
-		virtual void StartGame(IGameInstance* pGame);
-		virtual void QuitGame(int exitCode);
+		void ShowWindow(bool visible);
+		void StartGame(IGameInstance* pGame);
+		void QuitGame(int exitCode);
 
-		IGameWindow* GetWindow() const
+		inline IGameWindow* GetWindow() const
 		{
 			return mpWindow;
 		}
-		IRenderer* GetRenderer() const
+		inline IRenderer* GetRenderer() const
 		{
 			return mpRenderer;
 		}
 
 	protected:
+		virtual bool Initialize(const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight);
 		virtual void StartLogger();
-		virtual IGameWindow* CreateGameWindow(uint32_t windowWidth, uint32_t windowHeight);
-		virtual IRenderer* CreateRenderer();
 
 		std::wstring mAppName;
 		IGameInstance* mpGameInstance;

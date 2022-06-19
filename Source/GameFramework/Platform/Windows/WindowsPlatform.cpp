@@ -1,5 +1,11 @@
 #include "WindowsPlatform.h"
 
+namespace wyc
+{
+	GAME_FRAMEWORK_API HINSTANCE gModuleInstance = NULL;
+	GAME_FRAMEWORK_API HINSTANCE gAppInstance = NULL;
+}
+
 BOOL WINAPI DllMain(
 	HINSTANCE hinstDLL,	// handle to DLL module
 	DWORD fdwReason,	// reason for calling function

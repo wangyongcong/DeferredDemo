@@ -8,8 +8,5 @@ namespace wyc
 	public:
 		explicit WindowsApplication(const wchar_t* appName);
 
-	protected:
-		IGameWindow* CreateGameWindow(uint32_t windowWidth, uint32_t windowHeight) override;
-		IRenderer* CreateRenderer() override;
 	};
 }

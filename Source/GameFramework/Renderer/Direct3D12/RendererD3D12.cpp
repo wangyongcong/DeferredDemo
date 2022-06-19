@@ -54,8 +54,8 @@ namespace wyc
 			return true;
 		}
 		unsigned width, height;
-		WindowsWindow* win = dynamic_cast<WindowsWindow*>(gameWindow);
-		HWND hWnd = win->GetWindowHandle();
+		const WindowsWindow* window = dynamic_cast<WindowsWindow*>(gameWindow);
+		const HWND hWnd = window->GetWindowHandle();
 		gameWindow->GetWindowSize(width, height);
 		if (!CreateDevice(hWnd, width, height))
 		{
@@ -65,7 +65,7 @@ namespace wyc
 		{
 			return false;
 		}
-		if(!CreateCommandList())
+		if (!CreateCommandList())
 		{
 			return false;
 		}
@@ -194,6 +194,11 @@ namespace wyc
 		}
 	}
 
+	const GpuInfo& RendererD3D12::GetGpuInfo(int index)
+	{
+		return mGpuInfo;
+	}
+
 	bool RendererD3D12::CreateSwapChain(const SwapChainDesc& desc)
 	{
 		return true;
@@ -286,11 +291,10 @@ namespace wyc
 					mGpuInfo.featureLevel = level;
 					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &mGpuInfo.featureData, sizeof(mGpuInfo.featureData));
 					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &mGpuInfo.featureData1, sizeof(mGpuInfo.featureData1));
-					mGpuInfo.DedicatedVideoMemory = adapterDesc.DedicatedVideoMemory;
-					mGpuInfo.VendorId = adapterDesc.VendorId;
-					mGpuInfo.DeviceId = adapterDesc.DeviceId;
-					mGpuInfo.Revision = adapterDesc.Revision;
-					mGpuInfo.Name = adapterDesc.Description;
+					mGpuInfo.venderName = adapterDesc.Description;
+					mGpuInfo.vendorId = adapterDesc.VendorId;
+					mGpuInfo.deviceId = adapterDesc.DeviceId;
+					mGpuInfo.videoMemory = adapterDesc.DedicatedVideoMemory;
 					break;
 				}
 			}
@@ -304,7 +308,7 @@ namespace wyc
 		{
 			return false;
 		}
-		LogInfo("Device: %s", mGpuInfo.Name);
+		LogInfo("Device: %ls", mGpuInfo.venderName);
 
 #ifdef _DEBUG
 		if (SUCCEEDED(mpDevice->QueryInterface(IID_PPV_ARGS(&mpDeviceInfoQueue))))
