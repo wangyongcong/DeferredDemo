@@ -3,6 +3,8 @@
 #include "WindowsPlatform.h"
 #include "WindowsWindow.h"
 
+#include "LogMacros.h"
+
 namespace wyc
 {
 #define IS_WINDOW_VALID(Handle) ((Handle) != NULL)
@@ -29,29 +31,35 @@ namespace wyc
 
 	bool WindowsWindow::Create(const wchar_t* title, uint32_t width, uint32_t height)
 	{
-		const wchar_t* WindowClassName = L"GameWindow";
+		static const wchar_t* sWindowClassName = L"MainGameWindow";
+		static bool sIsClassRegistered = false;
 
-		WNDCLASSEX windowClass;
-		windowClass.cbSize = sizeof(WNDCLASSEX);
-		windowClass.style = CS_HREDRAW | CS_VREDRAW;
-		windowClass.lpfnWndProc = &WindowProcess;
-		windowClass.cbClsExtra = 0;
-		windowClass.cbWndExtra = 0;
-		windowClass.hInstance = gAppInstance;
-
-		HINSTANCE moduleInstance = GetModuleInstance();
-		windowClass.hIcon = LoadIcon(moduleInstance, MAKEINTRESOURCE(IDI_APP_ICON));
-		windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-		windowClass.hbrBackground = HBRUSH(COLOR_WINDOW);
-		windowClass.lpszMenuName = NULL;
-		windowClass.lpszClassName = WindowClassName;
-		windowClass.hIconSm = LoadIcon(moduleInstance, MAKEINTRESOURCE(IDI_APP_ICON));
-
-		HRESULT hr = RegisterClassEx(&windowClass);
-		if (!SUCCEEDED(hr))
+		if(!sIsClassRegistered)
 		{
-			// fail to register window
-			return nullptr;
+			WNDCLASSEX windowClass;
+			windowClass.cbSize = sizeof(WNDCLASSEX);
+			windowClass.style = CS_HREDRAW | CS_VREDRAW;
+			windowClass.lpfnWndProc = &WindowProcess;
+			windowClass.cbClsExtra = 0;
+			windowClass.cbWndExtra = 0;
+			windowClass.hInstance = gAppInstance;
+
+			HINSTANCE moduleInstance = GetModuleInstance();
+			windowClass.hIcon = LoadIcon(moduleInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+			windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+			windowClass.hbrBackground = HBRUSH(COLOR_WINDOW);
+			windowClass.lpszMenuName = NULL;
+			windowClass.lpszClassName = sWindowClassName;
+			windowClass.hIconSm = LoadIcon(moduleInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+
+			HRESULT hr = RegisterClassEx(&windowClass);
+			if (!SUCCEEDED(hr))
+			{
+				// fail to register window
+				LogError("Fail to register windows class %s", sWindowClassName);
+				return nullptr;
+			}
+			sIsClassRegistered = true;
 		}
 
 		DWORD style = WS_OVERLAPPEDWINDOW;
@@ -66,7 +74,7 @@ namespace wyc
 		int windowX = std::max<int>(0, (screenWidth - windowWidth) / 2);
 		int windowY = std::max<int>(0, (screenHeight - windowHeight) / 2);
 
-		HWND hMainWnd = CreateWindowW(WindowClassName, title, style,
+		HWND hMainWnd = CreateWindowW(sWindowClassName, title, style,
 			windowX, windowY, windowWidth, windowHeight, NULL, NULL, gAppInstance, NULL);
 		if (!hMainWnd)
 		{
@@ -78,15 +86,6 @@ namespace wyc
 		mWindowWidth = windowWidth;
 		mWindowHeight = windowHeight;
 		return true;
-	}
-
-	void WindowsWindow::Destroy()
-	{
-		if(mWindowHandle != NULL)
-		{
-			DestroyWindow(mWindowHandle);
-			mWindowHandle = NULL;
-		}
 	}
 
 	void WindowsWindow::SetVisible(bool bIsVisible)
@@ -126,7 +125,11 @@ namespace wyc
 
 	WindowsWindow::~WindowsWindow()
 	{
-		Destroy();
+		if(mWindowHandle != NULL)
+		{
+			DestroyWindow(mWindowHandle);
+			mWindowHandle = NULL;
+		}
 	}
 
 }

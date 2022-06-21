@@ -108,7 +108,6 @@ namespace wyc
 		}
 		if(mpWindow)
 		{
-			mpWindow->Destroy();
 			tf_delete(mpWindow);
 			mpWindow = nullptr;
 		}
@@ -154,7 +153,14 @@ namespace wyc
 			return false;
 		}
 		mpRenderer = tf_new(RenderClass);
-		if(!mpRenderer->Initialize(mpWindow))
+		const RendererConfig config {
+#ifdef _DEBUG
+			true,
+#else
+			false,
+#endif
+		};
+		if(!mpRenderer->Initialize(mpWindow, config))
 		{
 			LogError("Fail to initialize renderer");
 			return false;

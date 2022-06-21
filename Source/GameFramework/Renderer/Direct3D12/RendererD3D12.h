@@ -6,11 +6,6 @@
 
 namespace wyc
 {
-	enum
-	{
-		MAX_GPU_VENDOR_STRING_LENGTH = 64
-	};
-
 
 	struct DeviceFence
 	{
@@ -42,7 +37,7 @@ namespace wyc
 		~RendererD3D12() override;
 
 		// Implement IRenderer
-		bool Initialize(IGameWindow* gameWindow) override;
+		bool Initialize(IGameWindow* gameWindow, const RendererConfig& config) override;
 		void Release() override;
 		bool CreateSwapChain(const SwapChainDesc& desc) override;
 		void BeginFrame() override;
@@ -53,7 +48,7 @@ namespace wyc
 
 	protected:
 		void EnableDebugLayer();
-		bool CreateDevice(HWND hWnd, uint32_t width, uint32_t height);
+		bool CreateDevice(HWND hWnd, uint32_t width, uint32_t height, const RendererConfig& config);
 		bool CreateCommandQueue();
 		bool CreateCommandList();
 		bool CreateFence(DeviceFence& outFence);

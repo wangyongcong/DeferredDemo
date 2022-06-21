@@ -47,7 +47,7 @@ namespace wyc
 		Release();
 	}
 
-	bool RendererD3D12::Initialize(IGameWindow* gameWindow)
+	bool RendererD3D12::Initialize(IGameWindow* gameWindow, const RendererConfig& config)
 	{
 		if (mDeviceState >= ERenderDeviceState::DEVICE_INITIALIZED)
 		{
@@ -57,7 +57,7 @@ namespace wyc
 		const WindowsWindow* window = dynamic_cast<WindowsWindow*>(gameWindow);
 		const HWND hWnd = window->GetWindowHandle();
 		gameWindow->GetWindowSize(width, height);
-		if (!CreateDevice(hWnd, width, height))
+		if(!CreateDevice(hWnd, width, height, config))
 		{
 			return false;
 		}
@@ -242,16 +242,17 @@ namespace wyc
 		mFrameCount += 1;
 	}
 
-	bool RendererD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height)
+	bool RendererD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height, const RendererConfig& config)
 	{
 		if(mpDevice)
 		{
 			return true;
 		}
 
-#if defined(_DEBUG)
-		EnableDebugLayer();
-#endif
+		if(config.enableDebug)
+		{
+			EnableDebugLayer();
+		}
 
 		D3D_FEATURE_LEVEL featureLevels[4] =
 		{
@@ -263,9 +264,10 @@ namespace wyc
 		
 		// query for hardware adapter
 		UINT createFactoryFlags = 0;
-#ifdef _DEBUG
-		createFactoryFlags = DXGI_CREATE_FACTORY_DEBUG;
-#endif
+		if(config.enableDebug)
+		{
+			createFactoryFlags = DXGI_CREATE_FACTORY_DEBUG;
+		}
 		EnsureHResult(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&mpDXGIFactory)));
 
 		IDXGIAdapter4* adapter;
@@ -274,29 +276,28 @@ namespace wyc
 			DXGI_ADAPTER_DESC3 adapterDesc;
 			adapter->GetDesc3(&adapterDesc);
 
-			if(!(adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE))
+			for (const D3D_FEATURE_LEVEL level: featureLevels)
 			{
-				constexpr int count = sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL);
-				for (auto level: featureLevels)
+				if(FAILED(D3D12CreateDevice(adapter, level, __uuidof(ID3D12Device), nullptr)))
 				{
-					if(FAILED(D3D12CreateDevice(adapter, level, __uuidof(ID3D12Device), nullptr)))
-					{
-						continue;
-					}
-					if(FAILED(D3D12CreateDevice(adapter, level, IID_PPV_ARGS(&mpDevice))))
-					{
-						continue;
-					}
-					mpAdapter = adapter;
-					mGpuInfo.featureLevel = level;
-					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &mGpuInfo.featureData, sizeof(mGpuInfo.featureData));
-					mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &mGpuInfo.featureData1, sizeof(mGpuInfo.featureData1));
-					mGpuInfo.venderName = adapterDesc.Description;
-					mGpuInfo.vendorId = adapterDesc.VendorId;
-					mGpuInfo.deviceId = adapterDesc.DeviceId;
-					mGpuInfo.videoMemory = adapterDesc.DedicatedVideoMemory;
-					break;
+					continue;
 				}
+				if(FAILED(D3D12CreateDevice(adapter, level, IID_PPV_ARGS(&mpDevice))))
+				{
+					continue;
+				}
+				mpAdapter = adapter;
+				mGpuInfo.isSoftware = 0 != (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE);
+				mGpuInfo.featureLevel = level;
+				wcscpy_s(mGpuInfo.venderName, GPU_VENDOR_NAME_SIZE, adapterDesc.Description);
+				mGpuInfo.vendorId = adapterDesc.VendorId;
+				mGpuInfo.deviceId = adapterDesc.DeviceId;
+				mGpuInfo.videoMemory = adapterDesc.DedicatedVideoMemory;
+				mGpuInfo.sharedMemory = adapterDesc.SharedSystemMemory;
+				// check feature support
+				mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &mGpuInfo.featureData, sizeof(mGpuInfo.featureData));
+				mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &mGpuInfo.featureData1, sizeof(mGpuInfo.featureData1));
+				break;
 			}
 			if(mpDevice)
 			{
@@ -310,42 +311,43 @@ namespace wyc
 		}
 		LogInfo("Device: %ls", mGpuInfo.venderName);
 
-#ifdef _DEBUG
-		if (SUCCEEDED(mpDevice->QueryInterface(IID_PPV_ARGS(&mpDeviceInfoQueue))))
+		if(config.enableDebug)
 		{
-			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
-			mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
-		}
+			if (SUCCEEDED(mpDevice->QueryInterface(IID_PPV_ARGS(&mpDeviceInfoQueue))))
+			{
+				mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
+				mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
+				mpDeviceInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
+			}
 
-		// Suppress whole categories of messages
-// 		D3D12_MESSAGE_CATEGORY Categories[] = 
-// 		{
-// 		};
+			// Suppress whole categories of messages
+			// 		D3D12_MESSAGE_CATEGORY Categories[] = 
+			// 		{
+			// 		};
 
-		// Suppress messages based on their severity level
-		D3D12_MESSAGE_SEVERITY Severities[] =
-		{
-			D3D12_MESSAGE_SEVERITY_INFO
-		};
+			// Suppress messages based on their severity level
+			D3D12_MESSAGE_SEVERITY Severities[] =
+			{
+				D3D12_MESSAGE_SEVERITY_INFO
+			};
 
-		// Suppress individual messages by their ID
-		D3D12_MESSAGE_ID DenyIds[] = {
-			D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,   // I'm really not sure how to avoid this message.
-			D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE,                         // This warning occurs when using capture frame while graphics debugging.
-			D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE,                       // This warning occurs when using capture frame while graphics debugging.
-		};
+			// Suppress individual messages by their ID
+			D3D12_MESSAGE_ID DenyIds[] = {
+				D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE,   // I'm really not sure how to avoid this message.
+				D3D12_MESSAGE_ID_MAP_INVALID_NULLRANGE,                         // This warning occurs when using capture frame while graphics debugging.
+				D3D12_MESSAGE_ID_UNMAP_INVALID_NULLRANGE,                       // This warning occurs when using capture frame while graphics debugging.
+			};
 
-		D3D12_INFO_QUEUE_FILTER infoFilter = {};
-// 		NewinfoFilterFilter.DenyList.NumCategories = _countof(Categories);
-// 		infoFilter.DenyList.pCategoryList = Categories;
-		infoFilter.DenyList.NumSeverities = _countof(Severities);
-		infoFilter.DenyList.pSeverityList = Severities;
-		infoFilter.DenyList.NumIDs = _countof(DenyIds);
-		infoFilter.DenyList.pIDList = DenyIds;
+			D3D12_INFO_QUEUE_FILTER infoFilter = {};
+			// 		NewinfoFilterFilter.DenyList.NumCategories = _countof(Categories);
+			// 		infoFilter.DenyList.pCategoryList = Categories;
+			infoFilter.DenyList.NumSeverities = _countof(Severities);
+			infoFilter.DenyList.pSeverityList = Severities;
+			infoFilter.DenyList.NumIDs = _countof(DenyIds);
+			infoFilter.DenyList.pIDList = DenyIds;
 
-		CheckAndReturnFalse(mpDeviceInfoQueue->PushStorageFilter(&infoFilter));
-#endif // _DEBUG
+			CheckAndReturnFalse(mpDeviceInfoQueue->PushStorageFilter(&infoFilter));
+		} // enable debug checks
 		
 		return true;
 	}

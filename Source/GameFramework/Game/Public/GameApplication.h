@@ -5,6 +5,7 @@
 #include "GameFramework.h"
 #include "IGameWindow.h"
 #include "IRenderer.h"
+#include "Utility.h"
 
 namespace wyc
 {
@@ -12,14 +13,13 @@ namespace wyc
 
 	class GAME_FRAMEWORK_API GameApplication
 	{
+		DISALLOW_COPY_MOVE_AND_ASSIGN(GameApplication)
 	public:
 		static bool CreateApplication(const wchar_t* appName, uint32_t windowWidth, uint32_t windowHeight);
 		static void DestroyApplication();
 
 		explicit GameApplication(const wchar_t* appName);
 		virtual ~GameApplication();
-		GameApplication(const GameApplication&) = delete;
-		GameApplication& operator = (const GameApplication&) = delete;
 
 		void ShowWindow(bool visible);
 		void StartGame(IGameInstance* pGame);
