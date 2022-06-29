@@ -270,46 +270,160 @@ namespace wyc
 		}
 		EnsureHResult(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&mpDXGIFactory)));
 
+		int gpuCount = 0;
 		IDXGIAdapter4* adapter;
 		for (UINT i = 0; mpDXGIFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND; ++i)
 		{
 			DXGI_ADAPTER_DESC3 adapterDesc;
 			adapter->GetDesc3(&adapterDesc);
 
+			if(adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE)
+			{
+				adapter->Release();
+				continue;
+			}
+
+			for (const D3D_FEATURE_LEVEL level: featureLevels)
+			{
+				if(SUCCEEDED(D3D12CreateDevice(adapter, level, __uuidof(ID3D12Device), nullptr)))
+				{
+					IDXGIAdapter4* gpuInterface;
+					if(SUCCEEDED(adapter->QueryInterface(IID_PPV_ARGS(&gpuInterface))))
+					{
+						gpuCount += 1;
+						SAFE_RELEASE(gpuInterface);
+						break;
+					}
+				}
+			}
+			adapter->Release();
+		}
+
+		if(gpuCount < 1)
+		{
+			LogError("Can't find Direct3D12 device.");
+			return false;
+		}
+
+		D3D12GpuInfo* gpuInfoList = (D3D12GpuInfo*)alloca(sizeof(D3D12GpuInfo) * gpuCount);
+		memset(gpuInfoList, 0, sizeof(D3D12GpuInfo) * gpuCount);
+
+		struct GpuHandle
+		{
+			IDXGIAdapter4* adpater;
+			ID3D12Device2* device;
+		};
+		GpuHandle* gpuList = (GpuHandle*)alloca(sizeof(GpuHandle) * gpuCount);
+		memset(gpuList, 0, sizeof(GpuHandle) * gpuCount);
+
+		gpuCount = 0;
+		for (UINT i = 0; mpDXGIFactory->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&adapter)) != DXGI_ERROR_NOT_FOUND; ++i)
+		{
+			DXGI_ADAPTER_DESC3 adapterDesc;
+			adapter->GetDesc3(&adapterDesc);
+
+			if(adapterDesc.Flags & DXGI_ADAPTER_FLAG3_SOFTWARE)
+			{
+				adapter->Release();
+				continue;
+			}
 			for (const D3D_FEATURE_LEVEL level: featureLevels)
 			{
 				if(FAILED(D3D12CreateDevice(adapter, level, __uuidof(ID3D12Device), nullptr)))
 				{
 					continue;
 				}
-				if(FAILED(D3D12CreateDevice(adapter, level, IID_PPV_ARGS(&mpDevice))))
+
+				if(FAILED(adapter->QueryInterface(IID_PPV_ARGS(&gpuList[gpuCount].adpater))))
 				{
 					continue;
 				}
-				mpAdapter = adapter;
-				mGpuInfo.isSoftware = 0 != (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE);
-				mGpuInfo.featureLevel = level;
-				wcscpy_s(mGpuInfo.venderName, GPU_VENDOR_NAME_SIZE, adapterDesc.Description);
-				mGpuInfo.vendorId = adapterDesc.VendorId;
-				mGpuInfo.deviceId = adapterDesc.DeviceId;
-				mGpuInfo.videoMemory = adapterDesc.DedicatedVideoMemory;
-				mGpuInfo.sharedMemory = adapterDesc.SharedSystemMemory;
-				// check feature support
-				mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &mGpuInfo.featureData, sizeof(mGpuInfo.featureData));
-				mpDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &mGpuInfo.featureData1, sizeof(mGpuInfo.featureData1));
-				break;
-			}
-			if(mpDevice)
-			{
+
+				ID3D12Device2* pDevice;
+				D3D12CreateDevice(adapter, level, IID_PPV_ARGS(&pDevice));
+				gpuList[gpuCount].device = pDevice;
+				auto &gpu = gpuInfoList[gpuCount];
+				gpuCount += 1;
+
+				gpu.featureLevel = level;
+				wcscpy_s(gpu.vendorName, GPU_VENDOR_NAME_SIZE, adapterDesc.Description);
+				gpu.vendorId = adapterDesc.VendorId;
+				gpu.deviceId = adapterDesc.DeviceId;
+				gpu.revision = adapterDesc.Revision;
+				gpu.videoMemory = adapterDesc.DedicatedVideoMemory;
+				gpu.sharedMemory = adapterDesc.SharedSystemMemory;
+
+				pDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &gpu.featureData, sizeof(gpu.featureData));
+				pDevice->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &gpu.featureData1, sizeof(gpu.featureData1));
 				break;
 			}
 			adapter->Release();
 		}
-		if(!mpDevice)
+
+		// select the best one
+		int gpuIndex = 0;
+		for(int i=1; i<gpuCount; ++i)
 		{
-			return false;
+			auto &gpu1 = gpuInfoList[gpuIndex];
+			auto &gpu2 = gpuInfoList[i];
+			if(gpu2.featureData1.WaveOps != gpu1.featureData1.WaveOps)
+			{
+				if(gpu2.featureData1.WaveOps)
+				{
+					gpuIndex = i;
+				}
+				continue;
+			}
+			if(gpu2.featureLevel != gpu1.featureLevel)
+			{
+				if(gpu2.featureLevel > gpu1.featureLevel)
+				{
+					gpuIndex = i;
+				}
+				continue;
+			}
+			if(gpu2.videoMemory > gpu1.videoMemory)
+			{
+				gpuIndex = i;
+			}
 		}
-		LogInfo("Device: %ls", mGpuInfo.venderName);
+
+		mpAdapter = gpuList[gpuIndex].adpater;
+		mpDevice = gpuList[gpuIndex].device;
+		memcpy(&mGpuInfo, &gpuInfoList[gpuIndex], sizeof(GpuInfo));
+
+		for(int i=0; i<gpuCount; ++i)
+		{
+			if(i != gpuIndex)
+			{
+				SAFE_RELEASE(gpuList[i].adpater);
+				SAFE_RELEASE(gpuList[i].device);
+			}
+		}
+
+		// check MSAA support
+		D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msaaQualityLevels;
+		msaaQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		msaaQualityLevels.SampleCount = 4;
+		msaaQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+		msaaQualityLevels.NumQualityLevels = 0;
+		if(SUCCEEDED(mpDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msaaQualityLevels, sizeof(msaaQualityLevels))))
+		{
+			mGpuInfo.msaa4 = (int)msaaQualityLevels.NumQualityLevels;
+		}
+		msaaQualityLevels.SampleCount = 8;
+		msaaQualityLevels.NumQualityLevels = 0;
+		if(SUCCEEDED(mpDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msaaQualityLevels, sizeof(msaaQualityLevels))))
+		{
+			mGpuInfo.msaa8 = (int)msaaQualityLevels.NumQualityLevels;
+		}
+
+		LogInfo("Device: %ls", mGpuInfo.vendorName);
+		LogInfo("Vendor ID: %d", mGpuInfo.vendorId);
+		LogInfo("Revision ID: %d", mGpuInfo.revision);
+		LogInfo("Video Memory: %zu", mGpuInfo.videoMemory);
+		LogInfo("MSAA 4x: %d", mGpuInfo.msaa4);
+		LogInfo("MSAA 8x: %d", mGpuInfo.msaa8);
 
 		if(config.enableDebug)
 		{

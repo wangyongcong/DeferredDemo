@@ -13,12 +13,14 @@ namespace wyc
 
 	struct GpuInfo
 	{
-		wchar_t venderName[GPU_VENDOR_NAME_SIZE];
-		bool isSoftware;
-		uint32_t vendorId;
-		uint32_t deviceId;
+		wchar_t vendorName[GPU_VENDOR_NAME_SIZE];
+		unsigned vendorId;
+		unsigned deviceId;
+		unsigned revision;
 		size_t videoMemory;
 		size_t sharedMemory;
+		int msaa4;
+		int msaa8;
 	};
 
 	struct SwapChainDesc
