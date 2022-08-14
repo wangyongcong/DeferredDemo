@@ -21,24 +21,32 @@ namespace wyc
 {
 	RendererD3D12::RendererD3D12()
 		: mDeviceState(ERenderDeviceState::DEVICE_EMPTY)
-		, mMaxFrameLatency(3)
-		, mFrameCount(0)
-		, mFrameIndex(0)
-		, mBackBufferIndex(0)
-		, mDescriptorSizeRTV(0)
-		// D3D12 device data
+		, mFrameBufferCount(3)
+		, mFrameBufferIndex(0)
+		, mSampleCount(1)
+		, mSampleQuality()
+		, mFrameIndex()
+		, mDescriptorSize{}
+		, mColorFormat()
+		, mDepthFormat()
+		, mWindowHandle(nullptr)
+		, mGpuInfo()
 		, mpDebug(nullptr)
 		, mpDXGIFactory(nullptr)
 		, mpAdapter(nullptr)
 		, mpDevice(nullptr)
 		, mpDeviceInfoQueue(nullptr)
+		, mpRtvHeap(nullptr)
+		, mpDsvHeap(nullptr)
+		, mpSwapChain(nullptr)
+		, mppSwapChainBuffers(nullptr)
+		, mpDepthBuffer(nullptr)
 		, mpCommandQueue(nullptr)
 		, mpCommandList(nullptr)
 		, mppCommandAllocators(nullptr)
-		, mpCommandFences(nullptr)
-		, mpSwapChain(nullptr)
-		, mpSwapChainHeap(nullptr)
-		, mppBackBuffers(nullptr)
+		, mpFrameFence(nullptr)
+		, mFrameFenceEvent(nullptr)
+		, mpFrameFenceValue(nullptr)
 	{
 	}
 
@@ -54,72 +62,238 @@ namespace wyc
 			return true;
 		}
 		unsigned width, height;
-		const WindowsWindow* window = dynamic_cast<WindowsWindow*>(gameWindow);
-		const HWND hWnd = window->GetWindowHandle();
+		WindowsWindow* window = dynamic_cast<WindowsWindow*>(gameWindow);
+		HWND hWnd = window->GetWindowHandle();
 		gameWindow->GetWindowSize(width, height);
 		if(!CreateDevice(hWnd, width, height, config))
 		{
 			return false;
 		}
-		if (!CreateCommandQueue())
+		mFrameBufferCount = config.frameBufferCount;
+		// check MSAA setting
+		if(config.sampleCount > 4 && mGpuInfo.msaa8QualityLevel > 0)
 		{
-			return false;
+			mSampleCount = 8;
+			mSampleQuality = mGpuInfo.msaa8QualityLevel - 1;
 		}
-		if (!CreateCommandList())
+		else if(config.sampleCount > 1 && mGpuInfo.msaa4QualityLevel > 0)
 		{
+			mSampleCount = 4;
+			mSampleQuality = mGpuInfo.msaa4QualityLevel - 1;
+		}
+		else
+		{
+			mSampleCount = 1;
+			mSampleQuality = 0;
+		}
+
+		// check render target color format
+		switch(config.colorFormat)
+		{
+		case TinyImageFormat_R8G8B8A8_UNORM:
+		case TinyImageFormat_R8G8B8A8_SRGB:
+			mColorFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+			break;
+		case TinyImageFormat_B8G8R8A8_UNORM:
+		case TinyImageFormat_B8G8R8A8_SRGB:
+			mColorFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+			break;
+		default:
+			mColorFormat = DXGI_FORMAT_UNKNOWN;
+			break;
+		}
+
+		// check depth/stencil buffer format
+		switch(config.depthStencilFormat)
+		{
+		case TinyImageFormat_D16_UNORM:
+			mDepthFormat = DXGI_FORMAT_D16_UNORM;
+			break;
+		case TinyImageFormat_D24_UNORM_S8_UINT:
+			mDepthFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+			break;
+		case TinyImageFormat_D32_SFLOAT:
+			mDepthFormat = DXGI_FORMAT_D32_FLOAT;
+			break;
+		default:
+			mDepthFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+			break;
+		}
+
+		// create command queue
+		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
+		commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		commandQueueDesc.Priority = 0;
+		commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+		commandQueueDesc.NodeMask = 0;
+		if(FAILED(mpDevice->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&mpCommandQueue))))
+		{
+			LogError("Fail to create default command queue.");
 			return false;
 		}
 
-		// Create swap chain
-		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
-		swapChainDesc.Width = width;
-		swapChainDesc.Height = height;
-		swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		swapChainDesc.Stereo = FALSE;
-		swapChainDesc.SampleDesc = { 1, 0 };
-		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-		swapChainDesc.BufferCount = mMaxFrameLatency;
-		swapChainDesc.Scaling = DXGI_SCALING_STRETCH;
-		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-		swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-		swapChainDesc.Flags = 0;
+		// create default command list
+		mppCommandAllocators = (ID3D12CommandAllocator**)tf_calloc(mFrameBufferCount, sizeof(ID3D12CommandAllocator*));
+		memset(mppCommandAllocators, 0, sizeof(ID3D12CommandAllocator*) * mFrameBufferCount);
+		// mpCommandFences = (D3D12Fence*)tf_calloc_memalign(mFrameBufferCount, alignof(D3D12Fence), sizeof(D3D12Fence));
+		for(uint8_t i = 0; i < mFrameBufferCount; ++i)
+		{
+			if(FAILED(mpDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mppCommandAllocators[i]))))
+			{
+				LogError("Fail to create command allocator %d", i);
+				return false;
+			}
+			// Ensure(CreateFence(mpCommandFences[i]));
+		}
+		if(FAILED(mpDevice->CreateCommandList(
+			0, D3D12_COMMAND_LIST_TYPE_DIRECT, 
+			mppCommandAllocators[0], nullptr, 
+			IID_PPV_ARGS(&mpCommandList)
+		))) 
+		{
+			LogError("Fail to create default command list");
+			return false;
+		}
+		// mpCommandList->Close();
+		if(FAILED((mpDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mpFrameFence)))))
+		{
+			LogError("Fail to crate frame fence");
+			return false;
+		}
+		mFrameFenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+		if(mFrameFenceEvent == NULL)
+		{
+			LogError("Fail to crate event for fence");
+			return false;
+		}
+		mpFrameFenceValue = (uint64_t*)tf_calloc(mFrameBufferCount, sizeof(uint64_t));
+		memset(mpFrameFenceValue, 0, sizeof(uint64_t) * mFrameBufferCount);
 
+		// create swap chain
+		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {
+			width, height, mColorFormat, FALSE,
+			{ mSampleCount, mSampleQuality },
+			DXGI_USAGE_RENDER_TARGET_OUTPUT,
+			mFrameBufferCount,
+			DXGI_SCALING_STRETCH,
+			DXGI_SWAP_EFFECT_FLIP_DISCARD,
+			DXGI_ALPHA_MODE_UNSPECIFIED,
+			DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH,
+		};
 		IDXGISwapChain1* swapChain1;
-		CheckAndReturnFalse(mpDXGIFactory->CreateSwapChainForHwnd(
+		if(FAILED(mpDXGIFactory->CreateSwapChainForHwnd(
 			mpCommandQueue,
 			hWnd,
 			&swapChainDesc,
 			nullptr,
 			nullptr,
 			&swapChain1
-		));
-
-		CheckAndReturnFalse(mpDXGIFactory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER));
-		CheckAndReturnFalse(swapChain1->QueryInterface(IID_PPV_ARGS(&mpSwapChain)));
+		)))
+		{
+			LogError("Fail to create swap chain.");
+			return false;
+		}
+		if(FAILED((swapChain1->QueryInterface(IID_PPV_ARGS(&mpSwapChain)))))
+		{
+			LogError("Fail to query interface IDXGISwapChain4.");
+			swapChain1->Release();
+			return false;
+		}
 		swapChain1->Release();
-		mBackBufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
 
-		// create RTV heap for swap chain
-		D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-		heapDesc.NumDescriptors = mMaxFrameLatency;
-		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		if(FAILED(mpDXGIFactory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER)))
+		{
+			LogWarning("Fail to MakeWindowAssociation.");
+		}
 
-		CheckAndReturnFalse(mpDevice->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mpSwapChainHeap)));
+		// create RTV/DSV heap for swap chain
+		D3D12_DESCRIPTOR_HEAP_DESC rtvHeap = {
+			D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+			mFrameBufferCount,
+			D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
+			0,
+		};
+		D3D12_DESCRIPTOR_HEAP_DESC dsvHeap = {
+			D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+			1,
+			D3D12_DESCRIPTOR_HEAP_FLAG_NONE,
+			0,
+		};
+		if(FAILED(mpDevice->CreateDescriptorHeap(&rtvHeap, IID_PPV_ARGS(&mpRtvHeap))))
+		{
+			LogError("Fail to create RTV heap");
+			return false;
+		}
+		if(FAILED(mpDevice->CreateDescriptorHeap(&dsvHeap, IID_PPV_ARGS(&mpDsvHeap))))
+		{
+			LogError("Fail to create DSV heap");
+			return false;
+		}
 
 		// create render target
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(mpSwapChainHeap->GetCPUDescriptorHandleForHeapStart());
-		mDescriptorSizeRTV = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-		mppBackBuffers = (ID3D12Resource**)tf_calloc(mMaxFrameLatency, sizeof(ID3D12Resource*));
-		for (int i = 0; i < mMaxFrameLatency; ++i)
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(mpRtvHeap->GetCPUDescriptorHandleForHeapStart());
+		const unsigned descriptorSize = mDescriptorSize[D3D12_DESCRIPTOR_HEAP_TYPE_RTV];
+		ID3D12Resource* buffer = nullptr;
+		mppSwapChainBuffers = (ID3D12Resource**)tf_calloc(mFrameBufferCount, sizeof(ID3D12Resource*));
+		for (int i = 0; i < mFrameBufferCount; ++i)
 		{
-			ID3D12Resource* backBuffer = nullptr;
-			mpSwapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer));
-			mpDevice->CreateRenderTargetView(backBuffer, nullptr, rtvHandle);
-			mppBackBuffers[i] = backBuffer;
-			rtvHandle.Offset(mDescriptorSizeRTV);
+			mpSwapChain->GetBuffer(i, IID_PPV_ARGS(&buffer));
+			mpDevice->CreateRenderTargetView(buffer, nullptr, rtvHandle);
+			mppSwapChainBuffers[i] = buffer;
+			rtvHandle.Offset(descriptorSize);
 		}
-		
+
+		// create depth/stencil buffer
+		D3D12_RESOURCE_DESC depthDesc = {
+			D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+			0,
+			width, height,
+			1, 1,
+			mDepthFormat,
+			{mSampleCount, mSampleQuality},
+			D3D12_TEXTURE_LAYOUT_UNKNOWN,
+			D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+		};
+		D3D12_CLEAR_VALUE clearDepth;
+		clearDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		clearDepth.DepthStencil.Depth = 1.0f;
+		clearDepth.DepthStencil.Stencil = 0;
+		CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+		if(FAILED(mpDevice->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE, 
+			&depthDesc, 
+			D3D12_RESOURCE_STATE_COMMON, 
+			&clearDepth, 
+			IID_PPV_ARGS(&mpDepthBuffer)
+		)))
+		{
+			LogError("Fail to create depth/stencil buffer");
+			return false;
+		}
+
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {
+			mDepthFormat,
+			D3D12_DSV_DIMENSION_TEXTURE2D,
+			D3D12_DSV_FLAG_NONE,
+		};
+		dsvDesc.Texture2D.MipSlice = 0;
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle(mpDsvHeap->GetCPUDescriptorHandleForHeapStart());
+		mpDevice->CreateDepthStencilView(mpDepthBuffer, &dsvDesc, dsvHandle);
+
+		// execute init commands
+		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+			mpDepthBuffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		mpCommandList->ResourceBarrier(1, &barrier);
+		mpCommandList->Close();
+
+		ID3D12CommandList* const commandLists[] = { mpCommandList };
+		mpCommandQueue->ExecuteCommandLists(1, commandLists);
+		mFrameIndex += 1;
+		mFrameBufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
+		mpCommandQueue->Signal(mpFrameFence, mFrameIndex);
+		mpFrameFenceValue[mFrameBufferIndex] = mFrameIndex;
+
 		mDeviceState = ERenderDeviceState::DEVICE_INITIALIZED;
 		return true;
 	}
@@ -134,39 +308,38 @@ namespace wyc
 
 		if (mppCommandAllocators)
 		{
-			for (uint8_t i = 0; i < mMaxFrameLatency; ++i)
+			for (uint8_t i = 0; i < mFrameBufferCount; ++i)
 			{
 				mppCommandAllocators[i]->Release();
 			}
 			tf_free(mppCommandAllocators);
 			mppCommandAllocators = nullptr;
 		}
-		if (mpCommandFences)
-		{
-			for (uint8_t i = 0; i < mMaxFrameLatency; ++i)
-			{
-				ReleaseFence(mpCommandFences[i]);
-			}
-			tf_free(mpCommandFences);
-			mpCommandFences = nullptr;
-		}
-		ReleaseFence(mQueueFence);
 
-		if (mppBackBuffers)
+		if (mppSwapChainBuffers)
 		{
-			for (int i = 0; i < mMaxFrameLatency; ++i)
+			for (int i = 0; i < mFrameBufferCount; ++i)
 			{
-				ID3D12Resource* buff = mppBackBuffers[i];
+				ID3D12Resource* buff = mppSwapChainBuffers[i];
 				SAFE_RELEASE(buff);
 			}
-			tf_free(mppBackBuffers);
-			mppBackBuffers = nullptr;
+			tf_free(mppSwapChainBuffers);
+			mppSwapChainBuffers = nullptr;
 		}
+		SAFE_RELEASE(mpDepthBuffer);
 		SAFE_RELEASE(mpSwapChain);
-		SAFE_RELEASE(mpSwapChainHeap);
+		SAFE_RELEASE(mpRtvHeap);
+		SAFE_RELEASE(mpDsvHeap);
 
-		SAFE_RELEASE(mpCommandList);
 		SAFE_RELEASE(mpCommandQueue);
+		SAFE_RELEASE(mpCommandList);
+		SAFE_RELEASE(mpFrameFence);
+		SAFE_CLOSE_HANDLE(mFrameFenceEvent);
+		if(mpFrameFenceValue)
+		{
+			tf_free(mpFrameFenceValue);
+			mpFrameFenceValue = nullptr;
+		}
 
 		SAFE_RELEASE(mpAdapter);
 		SAFE_RELEASE(mpDXGIFactory);
@@ -188,9 +361,8 @@ namespace wyc
 	{
 		if(mDeviceState == ERenderDeviceState::DEVICE_INITIALIZED)
 		{
+			WaitForComplete(mFrameIndex);
 			mDeviceState = ERenderDeviceState::DEVICE_CLOSED;
-			DeviceFence& fence = mpCommandFences[mFrameIndex];
-			WaitForFence(fence);
 		}
 	}
 
@@ -199,47 +371,52 @@ namespace wyc
 		return mGpuInfo;
 	}
 
-	bool RendererD3D12::CreateSwapChain(const SwapChainDesc& desc)
-	{
-		return true;
-	}
-
 	void RendererD3D12::BeginFrame()
 	{
-		mFrameIndex = mFrameCount % mMaxFrameLatency;
-		ID3D12CommandAllocator* pAllocator = mppCommandAllocators[mFrameIndex];
-		DeviceFence& fence = mpCommandFences[mFrameIndex];
-		WaitForFence(fence);
+		mFrameIndex += 1;
+		auto frameFenceValue = mpFrameFenceValue[mFrameBufferIndex];
+		WaitForComplete(frameFenceValue);
 
+		ID3D12CommandAllocator* pAllocator = mppCommandAllocators[mFrameBufferIndex];
 		pAllocator->Reset();
 		mpCommandList->Reset(pAllocator, nullptr);
 
-		auto backBuffer = mppBackBuffers[mBackBufferIndex];
+		auto frameBuffer = mppSwapChainBuffers[mFrameBufferIndex];
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			frameBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		mpCommandList->ResourceBarrier(1, &barrier);
 		
 		float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-		CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mpSwapChainHeap->GetCPUDescriptorHandleForHeapStart(), mBackBufferIndex, mDescriptorSizeRTV);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(mpRtvHeap->GetCPUDescriptorHandleForHeapStart(), mFrameBufferIndex, mDescriptorSize[D3D12_DESCRIPTOR_HEAP_TYPE_RTV]);
 		mpCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE dsv(mpDsvHeap->GetCPUDescriptorHandleForHeapStart());
+		mpCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+	}
+
+	void RendererD3D12::EndFrame()
+	{
 	}
 
 	void RendererD3D12::Present()
 	{
-		auto backBuffer = mppBackBuffers[mBackBufferIndex];
+		auto frameBuffer = mppSwapChainBuffers[mFrameBufferIndex];
 		CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-			backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+			frameBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
 		mpCommandList->ResourceBarrier(1, &barrier);
 		mpCommandList->Close();
 
 		ID3D12CommandList* const commandLists[] = { mpCommandList };
 		mpCommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
-		DeviceFence& fence = mpCommandFences[mFrameIndex];
-		EnsureHResult(mpCommandQueue->Signal(fence.mpDxFence, ++fence.mFenceValue));
+		mpFrameFenceValue[mFrameBufferIndex] = mFrameIndex;
+		EnsureHResult(mpCommandQueue->Signal(mpFrameFence, mFrameIndex));
+		EnsureHResult(mpSwapChain->Present(0, 0));
+		mFrameBufferIndex = (mFrameBufferIndex + 1) % mFrameBufferCount;
+	}
 
-		EnsureHResult(mpSwapChain->Present(1, 0));
-		mBackBufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
-		mFrameCount += 1;
+	void RendererD3D12::Resize()
+	{
+
 	}
 
 	bool RendererD3D12::CreateDevice(HWND hWnd, uint32_t width, uint32_t height, const RendererConfig& config)
@@ -248,6 +425,8 @@ namespace wyc
 		{
 			return true;
 		}
+
+		mWindowHandle = hWnd;
 
 		if(config.enableDebug)
 		{
@@ -409,21 +588,26 @@ namespace wyc
 		msaaQualityLevels.NumQualityLevels = 0;
 		if(SUCCEEDED(mpDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msaaQualityLevels, sizeof(msaaQualityLevels))))
 		{
-			mGpuInfo.msaa4 = (int)msaaQualityLevels.NumQualityLevels;
+			mGpuInfo.msaa4QualityLevel = (int) msaaQualityLevels.NumQualityLevels;
 		}
 		msaaQualityLevels.SampleCount = 8;
 		msaaQualityLevels.NumQualityLevels = 0;
 		if(SUCCEEDED(mpDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msaaQualityLevels, sizeof(msaaQualityLevels))))
 		{
-			mGpuInfo.msaa8 = (int)msaaQualityLevels.NumQualityLevels;
+			mGpuInfo.msaa8QualityLevel = (int) msaaQualityLevels.NumQualityLevels;
 		}
 
 		LogInfo("Device: %ls", mGpuInfo.vendorName);
 		LogInfo("Vendor ID: %d", mGpuInfo.vendorId);
 		LogInfo("Revision ID: %d", mGpuInfo.revision);
 		LogInfo("Video Memory: %zu", mGpuInfo.videoMemory);
-		LogInfo("MSAA 4x: %d", mGpuInfo.msaa4);
-		LogInfo("MSAA 8x: %d", mGpuInfo.msaa8);
+		LogInfo("MSAA 4x: %d", mGpuInfo.msaa4QualityLevel);
+		LogInfo("MSAA 8x: %d", mGpuInfo.msaa8QualityLevel);
+
+		for(int i=0; i<D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
+		{
+			mDescriptorSize[i] = mpDevice->GetDescriptorHandleIncrementSize((D3D12_DESCRIPTOR_HEAP_TYPE)i);
+		}
 
 		if(config.enableDebug)
 		{
@@ -435,9 +619,9 @@ namespace wyc
 			}
 
 			// Suppress whole categories of messages
-			// 		D3D12_MESSAGE_CATEGORY Categories[] = 
-			// 		{
-			// 		};
+			// D3D12_MESSAGE_CATEGORY Categories[] = 
+			// {
+			// };
 
 			// Suppress messages based on their severity level
 			D3D12_MESSAGE_SEVERITY Severities[] =
@@ -466,60 +650,6 @@ namespace wyc
 		return true;
 	}
 
-	bool RendererD3D12::CreateCommandQueue()
-	{
-		Ensure(mpDevice);
-		D3D12_COMMAND_QUEUE_DESC commandQueueDesc = {};
-		commandQueueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		commandQueueDesc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-		commandQueueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-		commandQueueDesc.NodeMask = 0;
-		if(FAILED(mpDevice->CreateCommandQueue(&commandQueueDesc, IID_PPV_ARGS(&mpCommandQueue))))
-		{
-			return false;
-		}
-		if(!CreateFence(mQueueFence))
-		{
-			return false;
-		}
-		return true;
-	}
-
-	bool RendererD3D12::CreateFence(DeviceFence& outFence)
-	{
-		Ensure(mpDevice);
-		ID3D12Fence* pFence;
-		if (FAILED(mpDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&pFence))))
-		{
-			return false;
-		}
-		HANDLE hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-		if(hEvent == NULL)
-		{
-			pFence->Release();
-			return false;
-		}
-		outFence.mpDxFence = pFence;
-		outFence.mhWaitEvent = hEvent;
-		outFence.mFenceValue = 0;
-		return true;
-	}
-
-	void RendererD3D12::ReleaseFence(DeviceFence& fence)
-	{
-		SAFE_RELEASE(fence.mpDxFence);
-		SAFE_CLOSE_HANDLE(fence.mhWaitEvent);
-	}
-
-	void RendererD3D12::WaitForFence(DeviceFence& fence)
-	{
-		if(fence.mpDxFence->GetCompletedValue() < fence.mFenceValue)
-		{
-			fence.mpDxFence->SetEventOnCompletion(fence.mFenceValue, fence.mhWaitEvent);
-			WaitForSingleObject(fence.mhWaitEvent, INFINITE);
-		}
-	}
-
 	void RendererD3D12::ReportLiveObjects(const wchar_t* prompt)
 	{
 #ifdef _DEBUG
@@ -537,19 +667,20 @@ namespace wyc
 #endif
 	}
 
-	bool RendererD3D12::CreateCommandList()
+	void RendererD3D12::WaitForComplete(uint64_t frameIndex)
 	{
-		mppCommandAllocators = (ID3D12CommandAllocator**)tf_calloc(mMaxFrameLatency, sizeof(ID3D12CommandAllocator*));
-		mpCommandFences = (DeviceFence*)tf_calloc_memalign(mMaxFrameLatency, alignof(DeviceFence), sizeof(DeviceFence));
-		for(uint8_t i = 0; i < mMaxFrameLatency; ++i)
+		if(mpFrameFence->GetCompletedValue() < frameIndex)
 		{
-			EnsureHResult(mpDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mppCommandAllocators[i])));
-			Ensure(CreateFence(mpCommandFences[i]));
+			mpFrameFence->SetEventOnCompletion(frameIndex, mFrameFenceEvent);
+			WaitForSingleObject(mFrameFenceEvent, INFINITE);
 		}
-		EnsureHResult(mpDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mppCommandAllocators[0], nullptr, IID_PPV_ARGS(&mpCommandList)));
-		mpCommandList->Close();
-		return true;
 	}
+
+	static D3D12_COMMAND_LIST_TYPE D3D12CommandListTypeConverter[ECommandType::MaxCount] = {
+		D3D12_COMMAND_LIST_TYPE_DIRECT,
+		D3D12_COMMAND_LIST_TYPE_COMPUTE,
+		D3D12_COMMAND_LIST_TYPE_COPY
+	};
 
 	void RendererD3D12::EnableDebugLayer()
 	{

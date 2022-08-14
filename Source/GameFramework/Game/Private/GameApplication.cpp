@@ -154,6 +154,10 @@ namespace wyc
 		}
 		mpRenderer = tf_new(RenderClass);
 		const RendererConfig config {
+			3,
+			1,
+			TinyImageFormat_R8G8B8A8_SRGB,
+			TinyImageFormat_D24_UNORM_S8_UINT,
 #ifdef _DEBUG
 			true,
 #else

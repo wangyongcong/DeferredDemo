@@ -1,12 +1,16 @@
 #pragma once
 #include "IGameWindow.h"
+#include "tinyimageformat/tinyimageformat_base.h"
 
 namespace wyc
 {
 	struct RendererConfig
 	{
+		uint8_t frameBufferCount;
+		uint8_t sampleCount;
+		TinyImageFormat colorFormat;
+		TinyImageFormat depthStencilFormat;
 		bool enableDebug;
-
 	};
 
 	#define GPU_VENDOR_NAME_SIZE 64
@@ -19,15 +23,23 @@ namespace wyc
 		unsigned revision;
 		size_t videoMemory;
 		size_t sharedMemory;
-		int msaa4;
-		int msaa8;
+		int msaa4QualityLevel;
+		int msaa8QualityLevel;
 	};
 
-	struct SwapChainDesc
+	enum EFenceStatus
 	{
-		uint32_t width;
-		uint32_t height;
-		uint32_t bufferCount;
+		Complete,
+		Incomplete,
+	};
+
+	enum ECommandType
+	{
+		Draw,
+		Compute,
+		Copy,
+		// count of command list type
+		MaxCount
 	};
 
 	class IRenderer
@@ -37,8 +49,9 @@ namespace wyc
 		virtual bool Initialize(IGameWindow* gameWindow, const RendererConfig& config) = 0;
 		virtual void Release() = 0;
 		virtual void BeginFrame() = 0;
-		virtual bool CreateSwapChain(const SwapChainDesc &desc) = 0;
+		virtual void EndFrame() = 0;
 		virtual void Present() = 0;
+		virtual void Resize() = 0;
 		virtual void Close() = 0;
 		virtual const GpuInfo& GetGpuInfo(int index=0) = 0;
 	};
